@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const ph = e.target.closest('[data-iphase]');
     if (ph) { itemsPhase = ph.dataset.iphase; renderItems(); }
   });
+  $('#type-seg').addEventListener('click', e => {
+    const b = e.target.closest('[data-type]');
+    if (b) { itemsType = b.dataset.type; renderItems(); }
+  });
 
   $('#tpl-list').addEventListener('click', onTplClick);
   $('#tpl-add').addEventListener('click', addTplRow);
@@ -496,23 +500,30 @@ async function toggleConfirm(id, btn) {
 
 /* ================= 教育項目 ================= */
 let itemsPhase = '*';
+let itemsType = 'all';
 
 function renderItems() {
   const wrap = $('#items-list');
   if (!items.length) {
     $('#items-phase-chips').innerHTML = '';
+    renderTypeSeg($('#type-seg'), [], itemsType);
     wrap.innerHTML = '<p class="empty">項目はまだありません。「まとめ登録」で一気に登録できます</p>';
     return;
   }
-  const phases = groupByPhase(items);
-  if (itemsPhase !== '*' && !phases.some(p => p.name === itemsPhase)) itemsPhase = '*';
-  $('#items-phase-chips').innerHTML = phases.length > 1
+  const allPhases = groupByPhase(items);
+  if (itemsPhase !== '*' && !allPhases.some(p => p.name === itemsPhase)) itemsPhase = '*';
+  $('#items-phase-chips').innerHTML = allPhases.length > 1
     ? `<button class="chip ${itemsPhase === '*' ? 'active' : ''}" data-iphase="*">すべて</button>` +
-      phases.map(p => `<button class="chip ${p.name === itemsPhase ? 'active' : ''}" data-iphase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
+      allPhases.map(p => `<button class="chip ${p.name === itemsPhase ? 'active' : ''}" data-iphase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
     : '';
-  const shown = itemsPhase === '*' ? phases : phases.filter(p => p.name === itemsPhase);
+  const inPhase = itemsPhase === '*' ? items : items.filter(i => phaseName(i) === itemsPhase);
+  renderTypeSeg($('#type-seg'), inPhase, itemsType);
+  const filtered = inPhase.filter(i => itemsType === 'all' || (i.type || 'check') === itemsType);
+  if (!filtered.length) { wrap.innerHTML = '<p class="empty">該当する項目はありません</p>'; return; }
+  const phases = groupByPhase(filtered);
+  const shown = phases;
   wrap.innerHTML = shown.map(p => `
-    ${phases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}</h3>` : ''}
+    ${allPhases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}</h3>` : ''}
     ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(i => `
       <div class="row item-row ${i.published === false ? 'unpub' : ''}">
         <div class="order-btns"><button type="button" data-move="${i.id}" data-dir="-1">▲</button><button type="button" data-move="${i.id}" data-dir="1">▼</button></div>

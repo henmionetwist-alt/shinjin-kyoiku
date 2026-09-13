@@ -3,6 +3,7 @@
 let me = null;
 let items = [], done = {}, approvals = {}, template = [], myReports = [];
 let trainingFilter = 'all';
+let typeFilter = 'all';
 let selectedPhase = null;
 const openItems = new Set();
 
@@ -19,6 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTraining();
   }));
   $('#training-list').addEventListener('click', onTrainingClick);
+  $('#type-seg').addEventListener('click', e => {
+    const b = e.target.closest('[data-type]');
+    if (!b) return;
+    typeFilter = b.dataset.type;
+    renderTraining();
+  });
   $('#phase-chips').addEventListener('click', e => {
     const c = e.target.closest('[data-phase]');
     if (!c) return;
@@ -140,7 +147,9 @@ function renderTraining() {
     : '';
   const phase = phases.find(p => p.name === selectedPhase);
   const base = phase ? phase.items : items;
-  const list = base.filter(i => trainingFilter === 'all' || statusOf(i.id, done, approvals) === trainingFilter);
+  renderTypeSeg($('#type-seg'), base, typeFilter);
+  const list = base.filter(i => (typeFilter === 'all' || (i.type || 'check') === typeFilter)
+    && (trainingFilter === 'all' || statusOf(i.id, done, approvals) === trainingFilter));
   if (!list.length) {
     wrap.innerHTML = `<p class="empty">${items.length ? '該当する項目はありません' : '教育項目はまだ登録されていません'}</p>`;
     return;

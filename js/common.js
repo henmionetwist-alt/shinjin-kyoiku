@@ -179,6 +179,14 @@ function stampGrid(items, done, approvals) {
   }).join('')}</div>`;
 }
 
+/* 分類タブ（すべて／チェック／説明あり／ビデオ）に件数を付けて描画 */
+function renderTypeSeg(el, list, active) {
+  if (!el) return;
+  const count = t => t === 'all' ? list.length : list.filter(i => (i.type || 'check') === t).length;
+  el.innerHTML = [['all', 'すべて'], ['check', 'チェック'], ['text', '説明あり'], ['video', 'ビデオ']]
+    .map(([t, label]) => `<button data-type="${t}" class="${t === active ? 'active' : ''}">${label}<small>${count(t)}</small></button>`).join('');
+}
+
 /* ---- モーダル ---- */
 function openModal(html) {
   closeModal();
