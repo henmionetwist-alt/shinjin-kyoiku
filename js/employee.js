@@ -160,21 +160,33 @@ function renderHome() {
 function renderTraining() {
   const wrap = $('#training-list');
   const phases = groupByPhase(items);
-  if (!phases.some(p => p.name === selectedPhase)) selectedPhase = currentPhase(items, done, approvals);
+  if (selectedPhase !== '*' && !phases.some(p => p.name === selectedPhase)) selectedPhase = currentPhase(items, done, approvals);
   $('#phase-chips').innerHTML = phases.length > 1
-    ? phases.map(p => `<button class="chip ${p.name === selectedPhase ? 'active' : ''}" data-phase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
+    ? `<button class="chip ${selectedPhase === '*' ? 'active' : ''}" data-phase="*">すべて</button>` +
+      phases.map(p => `<button class="chip ${p.name === selectedPhase ? 'active' : ''}" data-phase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
     : '';
   const phase = phases.find(p => p.name === selectedPhase);
-  const base = phase ? phase.items : items;
+  const base = (selectedPhase !== '*' && phase) ? phase.items : items;
   renderTypeSeg($('#type-seg'), base, typeFilter);
-  const list = base.filter(i => (typeFilter === 'all' || (i.type || 'check') === typeFilter)
+  const matchType = i => typeFilter === 'all' || (i.type || 'check') === typeFilter;
+  const list = base.filter(i => matchType(i)
     && (trainingFilter === 'all' || statusOf(i.id, done, approvals) === trainingFilter));
   if (!list.length) {
-    wrap.innerHTML = `<p class="empty">${items.length ? '該当する項目はありません' : '教育項目はまだ登録されていません'}</p>`;
+    let msg = items.length ? '該当する項目はありません' : '教育項目はまだ登録されていません';
+    if (items.length && typeFilter !== 'all' && selectedPhase !== '*') {
+      const others = phases.filter(p => p.name !== selectedPhase && p.items.some(matchType));
+      if (others.length) {
+        msg += `<br><span class="small">${TYPE_LABELS[typeFilter]}は別の段階にあります：` +
+          others.map(p => `<button class="chip" data-phase="${esc(p.name)}">${esc(p.name)} ${p.items.filter(matchType).length}</button>`).join(' ') + '</span>';
+      }
+    }
+    wrap.innerHTML = `<p class="empty">${msg}</p>`;
     return;
   }
-  wrap.innerHTML = groupItems(list).map(g =>
-    `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(renderItem).join('')}`
+  const showPhaseTitles = selectedPhase === '*' && phases.length > 1;
+  wrap.innerHTML = groupByPhase(list).map(p =>
+    `${showPhaseTitles ? `<h3 class="phase-title">${esc(p.name)}</h3>` : ''}` +
+    p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(renderItem).join('')}`).join('')
   ).join('');
 }
 
@@ -213,6 +225,8 @@ function onTrainingClick(e) {
   const undoBtn = e.target.closest('[data-undo]');
   if (undoBtn) { undoDone(undoBtn.dataset.undo, undoBtn); return; }
   if (e.target.closest('a')) return;
+  const phaseBtn = e.target.closest('[data-phase]');
+  if (phaseBtn) { selectedPhase = phaseBtn.dataset.phase; renderTraining(); return; }
   const head = e.target.closest('[data-toggle]');
   if (head) {
     const item = head.closest('.item');
