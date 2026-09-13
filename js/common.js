@@ -165,6 +165,15 @@ function unlockedItems(items, unlocked, phaseLock) {
   return items.filter(i => isPhaseUnlocked(phaseName(i), unlocked, phaseLock));
 }
 
+/* タイピングの言葉リスト（settings/practice）。初期リストと責任者の追加分を合わせて返す */
+async function fetchPracticeWords() {
+  const snap = await db.doc('settings/practice').get();
+  const data = snap.exists ? snap.data() : {};
+  const custom = (data.words || []).map(w => ({ display: w.display || w.kana, kana: w.kana })).filter(w => w.kana);
+  const base = data.useDefault === false ? [] : DEFAULT_TYPING_WORDS.map(([display, kana]) => ({ display, kana }));
+  return { words: [...base, ...custom], useDefault: data.useDefault !== false, custom };
+}
+
 async function fetchTemplate() {
   const snap = await db.doc('settings/reportTemplate').get();
   return snap.exists ? (snap.data().items || []) : [];
@@ -203,7 +212,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '10';
+const APP_VERSION = '11';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {

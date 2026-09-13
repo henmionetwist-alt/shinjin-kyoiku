@@ -2,7 +2,8 @@
 
 let me = null;
 let employees = [], items = [], template = [], admins = [], reports = [];
-const progressMap = {}, approvalsMap = {}, unlockedMap = {}, memosMap = {};
+const progressMap = {}, approvalsMap = {}, unlockedMap = {}, memosMap = {}, practiceMap = {};
+let practiceSettings = { useDefault: true, custom: [] };
 let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
 let currentEmp = null, empNotes = [], empReports = [];
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-add-admin').addEventListener('click', openAddAdmin);
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
+  $('#pw-save').addEventListener('click', savePracticeWords);
   $('#phase-lock').addEventListener('change', async e => {
     const on = e.target.checked;
     if (on && !confirm('段階の許可制をオンにします。\n許可していない段階は社員に表示されなくなります。\nいま進行中の段階と最初の段階は、全員分を自動で許可します。よろしいですか？')) { e.target.checked = false; return; }
@@ -125,15 +127,17 @@ function showBlocked(msg) {
 
 /* ---- データ読み込み ---- */
 async function loadAll() {
-  const [empSnap, it, tpl, admSnap, repSnap, app] = await Promise.all([
+  const [empSnap, it, tpl, admSnap, repSnap, app, pw] = await Promise.all([
     db.collection('employees').get(),
     fetchItems(false),
     fetchTemplate(),
     db.collection('admins').get(),
     db.collection('reports').orderBy('createdAt', 'desc').limit(150).get(),
     fetchAppSettings(),
+    fetchPracticeWords(),
   ]);
   appSettings = app;
+  practiceSettings = pw;
   employees = empSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   items = it;
@@ -154,6 +158,7 @@ async function loadProgress() {
     const p = results[i * 2], a = results[i * 2 + 1];
     progressMap[e.id] = p.exists ? (p.data().done || {}) : {};
     memosMap[e.id] = p.exists ? (p.data().memos || {}) : {};
+    practiceMap[e.id] = p.exists ? (p.data().practice || {}) : {};
     approvalsMap[e.id] = a.exists ? (a.data().items || {}) : {};
     unlockedMap[e.id] = a.exists ? (a.data().unlocked || {}) : {};
   });
@@ -172,7 +177,50 @@ function renderAll() {
   renderTemplate();
   renderAdmins();
   renderPhaseLockSetting();
+  renderPracticeSettings();
   $('#my-name-disp').textContent = me.name;
+}
+
+/* ---- 練習：言葉リストの設定 ---- */
+function renderPracticeSettings() {
+  $('#pw-default').checked = practiceSettings.useDefault !== false;
+  $('#pw-words').value = (practiceSettings.custom || []).map(w => w.display && w.display !== w.kana ? `${w.display}｜${w.kana}` : w.kana).join('\n');
+}
+function parsePracticeWords(text) {
+  const words = [], errors = [];
+  text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(line => {
+    const parts = line.split(/\s*(?:｜|\||→|➡|\t)\s*/).map(x => x.trim()).filter(Boolean);
+    const display = parts[0], kana = toHiragana(parts[1] || parts[0]);
+    const bad = invalidKanaChars(kana);
+    if (bad.length) errors.push(`「${line}」：よみに変換できない文字（${bad.join(' ')}）。「表示｜よみ」の形でひらがなの読みを付けてください`);
+    else words.push({ display, kana });
+  });
+  return { words, errors };
+}
+async function savePracticeWords() {
+  const { words, errors } = parsePracticeWords($('#pw-words').value);
+  const errEl = $('#pw-error');
+  errEl.innerHTML = errors.map(e => esc(e)).join('<br>');
+  if (errors.length) return;
+  const btn = $('#pw-save');
+  setBusy(btn, true, '保存中…');
+  try {
+    await db.doc('settings/practice').set({ words, useDefault: $('#pw-default').checked, updatedAt: FV.serverTimestamp() });
+    practiceSettings = { useDefault: $('#pw-default').checked, custom: words };
+    toast(`言葉リストを保存しました（追加 ${words.length} 語）`, 'ok');
+  } catch (err) { toast(authErrorMessage(err), 'err'); }
+  finally { setBusy(btn, false); }
+}
+function practiceRecordHtml(uid) {
+  const pr = practiceMap[uid] || {};
+  const t = pr.typing || {}, sc = pr.shortcuts || {};
+  if (!t.best && !sc.best) return '<p class="muted small">まだ練習の記録はありません</p>';
+  const last = (h, n) => (h || []).slice(-n).reverse();
+  return `
+    <div class="row"><div class="row-main"><b>タイピング</b>${t.best ? `<div class="muted small">ベスト ${t.best.cpm} 打鍵/分・正確率 ${t.best.acc}%（${fmtDateTime(t.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
+      ${last(t.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.cpm} 打鍵/分・${h.acc}%・${h.words} 語</div>`).join('')}</div></div>
+    <div class="row"><div class="row-main"><b>ショートカット</b>${sc.best ? `<div class="muted small">ベスト ${sc.best.score}/${sc.best.total} 正解・${sc.best.seconds}秒（${fmtDateTime(sc.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
+      ${last(sc.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.score}/${h.total}・${h.seconds}秒・${esc(h.sets || '')}</div>`).join('')}</div></div>`;
 }
 
 /* ---- 段階の許可 ---- */
@@ -472,6 +520,11 @@ function renderEmpDetail() {
       <h3>教育項目 <span class="muted small">承認 ${s.approved}/${s.total}・確認待ち ${s.pending}</span></h3>
       ${stampGrid(pub, done, appr)}
       ${itemsHtml || '<p class="muted small">公開中の項目がありません</p>'}
+    </div>
+
+    <div class="card">
+      <h3>⌨️ 練習の記録</h3>
+      ${practiceRecordHtml(e.id)}
     </div>
 
     <div class="card">

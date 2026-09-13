@@ -2,6 +2,7 @@
 
 let me = null;
 let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, template = [], myReports = [];
+let practice = {};
 let appSettings = { phaseLock: false };
 const visibleItems = () => unlockedItems(items, unlocked, appSettings.phaseLock);
 let trainingFilter = 'all';
@@ -14,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindLoginForm();
   $('#blocked-logout').addEventListener('click', () => auth.signOut());
   $('#btn-logout').addEventListener('click', () => { if (confirm('ログアウトしますか？')) auth.signOut(); });
-  $$('.tabbar button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $$('.tabbar button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab !== 'practice') stopPracticeSession(); setTab(b.dataset.tab); }));
   $$('[data-goto]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.goto)));
   $$('.filter-row .chip').forEach(c => c.addEventListener('click', () => {
     trainingFilter = c.dataset.filter;
@@ -55,6 +56,7 @@ async function refreshAll(btn) {
     if (await checkForNewVersion(true)) return;
     await loadAll();
     renderHome(); renderTraining(); renderHistory();
+    if (!practiceSession) renderPractice();
     if (JSON.stringify(template) !== before) renderReportForm();
     toast('最新の状態に更新しました', 'ok');
   } catch (err) {
@@ -99,17 +101,20 @@ function showBlocked(msg, adminLink) {
 }
 
 async function loadAll() {
-  const [it, prog, appr, tpl, reps, app] = await Promise.all([
+  const [it, prog, appr, tpl, reps, app, pw] = await Promise.all([
     fetchItems(true),
     db.doc('progress/' + me.uid).get(),
     db.doc('approvals/' + me.uid).get(),
     fetchTemplate(),
     db.collection('reports').where('uid', '==', me.uid).get(),
     fetchAppSettings(),
+    fetchPracticeWords(),
   ]);
   items = it;
   done = prog.exists ? (prog.data().done || {}) : {};
   memos = prog.exists ? (prog.data().memos || {}) : {};
+  practice = prog.exists ? (prog.data().practice || {}) : {};
+  practiceWords = pw.words;
   approvals = appr.exists ? (appr.data().items || {}) : {};
   unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
   appSettings = app;
@@ -128,6 +133,7 @@ function renderAll() {
   renderTraining();
   renderReportForm();
   renderHistory();
+  renderPractice();
 }
 
 /* ---- ホーム ---- */

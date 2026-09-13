@@ -216,6 +216,29 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
   padding: 5px 8px; margin-top: 4px; font-size: 13px; color: var(--text); white-space: pre-wrap;
 }
 
+/* ---- 練習 ---- */
+.chip-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.chip-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--primary); }
+.chip-check:has(input:checked) { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
+.history { margin-top: 8px; }
+.history summary { cursor: pointer; }
+.practice-card { transition: background .15s; }
+.practice-card.flash-ok { animation: flashOk .35s; }
+.practice-card.flash-miss { animation: flashMiss .35s; }
+@keyframes flashOk { 0% { background: var(--ok-soft); } 100% { background: #fff; } }
+@keyframes flashMiss { 0% { background: var(--danger-soft); } 100% { background: #fff; } }
+.practice-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.practice-top .btn { margin-left: auto; }
+.practice-time { font-size: 28px; font-weight: 700; color: var(--primary); min-width: 44px; }
+.ty-display { font-size: 26px; font-weight: 700; text-align: center; margin: 18px 0 6px; line-height: 1.3; }
+.ty-word { font-size: 18px; text-align: center; color: var(--muted); letter-spacing: .05em; }
+.ty-word .done { color: var(--primary); }
+.ty-romaji { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 22px; text-align: center; margin: 10px 0 14px; letter-spacing: .06em; color: #9aa39f; word-break: break-all; }
+.ty-romaji .done { color: var(--text); }
+.ty-romaji .buf { color: var(--primary); text-decoration: underline; }
+.sc-label { font-size: 26px; font-weight: 700; text-align: center; margin: 24px 0 10px; line-height: 1.3; }
+.sc-feedback { text-align: center; min-height: 1.5em; color: var(--muted); font-size: 15px; }
+
 /* ---- 絞り込みチップ ---- */
 .filter-row { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; align-items: center; padding-bottom: 2px; }
 .chip {

@@ -13,6 +13,8 @@ js/firebase-config.js  ← Firebase の設定をここに貼る（アプリ名�
 js/common.js        共通処理
 js/employee.js      社員側の処理
 js/admin.js         責任者側の処理
+js/practice-data.js 練習用データ（言葉リスト・ローマ字表・ショートカット一覧）
+js/practice.js      社員側の練習（タイピング・ショートカット）
 firestore.rules     Firestore に貼るセキュリティルール
 manifest.json / manifest-admin.json   ホーム画面追加用
 icons/              アイコン
@@ -47,7 +49,7 @@ icons/              アイコン
 ## ファイルを更新したのに画面が変わらないとき
 
 バージョン番号は3か所で管理しています（更新用 ZIP では毎回そろえて上げてあります）。
-- `index.html` / `admin.html` の `?v=10`
+- `index.html` / `admin.html` の `?v=11`
 - `js/common.js` の `APP_VERSION`
 - `version.json`
 
@@ -66,9 +68,10 @@ icons/              アイコン
 | `admins/{メール}` | 責任者。ドキュメントがあれば責任者扱い |
 | `employees/{uid}` | 社員（name, email, active） |
 | `items/{id}` | 教育項目（title, description, type, videoUrl, phase＝段階, group＝カテゴリ, order, published） |
-| `progress/{uid}` | 社員が「履修済み」にした項目（done: {itemId: 時刻}）と項目メモ（memos: {itemId: {text, at}}） |
+| `progress/{uid}` | 社員が「履修済み」にした項目（done）、項目メモ（memos）、練習の記録（practice.typing / practice.shortcuts） |
 | `approvals/{uid}` | 責任者の承認（items: {itemId: {at, by}}）と段階の許可（unlocked: {段階名: true}） |
 | `reports/{id}` | 日報（uid, name, date, checks, text, confirmations） |
 | `notes/{uid}` | 責任者メモ（entries: [{text, author, at}]） |
 | `settings/reportTemplate` | 日報のチェック項目（items: [...]） |
 | `settings/app` | アプリ設定（phaseLock: 段階の許可制） |
+| `settings/practice` | タイピング練習の言葉（words: [{display, kana}], useDefault） |

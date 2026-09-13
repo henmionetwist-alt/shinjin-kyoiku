@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-admin.json">
 <link rel="apple-touch-icon" href="icons/admin-180.png">
 <link rel="icon" href="icons/admin-192.png">
-<link rel="stylesheet" href="css/style.css?v=10">
+<link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body class="admin">
 
@@ -110,6 +110,14 @@
         <button class="btn btn-primary btn-block" id="tpl-save">チェック項目を保存</button>
       </div>
       <div class="card">
+        <h3>タイピング練習の言葉</h3>
+        <p class="muted small">1行に1語。「表示｜よみ（ひらがな）」の形で書きます。ひらがな・カタカナだけの言葉は「よみ」を省略できます。<br>例：確認します｜かくにんします</p>
+        <label class="check"><input type="checkbox" id="pw-default" checked><span>初めから入っている言葉リストも使う</span></label>
+        <label style="margin-top:10px">追加の言葉<textarea id="pw-words" rows="6" placeholder="確認します｜かくにんします&#10;おつかれさまです&#10;スマレジ｜すまれじ"></textarea></label>
+        <p id="pw-error" class="error"></p>
+        <button class="btn btn-primary btn-block" id="pw-save">言葉リストを保存</button>
+      </div>
+      <div class="card">
         <h3>段階の許可制</h3>
         <label class="check"><input type="checkbox" id="phase-lock"><span>段階（1週目など）は責任者が許可するまで社員に表示しない</span></label>
         <p class="muted small" style="margin-top:8px">オンにすると、社員詳細画面に「段階の許可」欄が出て、社員ごとに段階を開放できます。次の段階が許可できる状態になると社員一覧に表示されます</p>
@@ -140,8 +148,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=10"></script>
-<script src="js/common.js?v=10"></script>
-<script src="js/admin.js?v=10"></script>
+<script src="js/firebase-config.js?v=11"></script>
+<script src="js/common.js?v=11"></script>
+<script src="js/practice-data.js?v=11"></script>
+<script src="js/admin.js?v=11"></script>
 </body>
 </html>
