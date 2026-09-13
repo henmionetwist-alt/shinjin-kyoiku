@@ -542,8 +542,8 @@ function renderItems() {
   const phases = groupByPhase(filtered);
   const shown = phases;
   wrap.innerHTML = shown.map(p => `
-    ${allPhases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}</h3>` : ''}
-    ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(i => `
+    ${allPhases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}<button type="button" class="rename-btn" data-rename-phase="${esc(p.name)}">名前を変更</button></h3>` : ''}
+    ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}<button type="button" class="rename-btn" data-rename-group="${esc(g.name)}" data-in-phase="${esc(p.name)}">名前を変更</button></h3>${g.items.map(i => `
       <div class="row item-row ${i.published === false ? 'unpub' : ''}">
         <div class="order-btns"><button type="button" data-move="${i.id}" data-dir="-1">▲</button><button type="button" data-move="${i.id}" data-dir="1">▼</button></div>
         <div class="row-main" data-edit="${i.id}">
@@ -554,10 +554,38 @@ function renderItems() {
 }
 
 async function onItemsClick(e) {
+  const rp = e.target.closest('[data-rename-phase]');
+  if (rp) { await renameLabel('phase', rp.dataset.renamePhase, null); return; }
+  const rg = e.target.closest('[data-rename-group]');
+  if (rg) { await renameLabel('group', rg.dataset.renameGroup, rg.dataset.inPhase); return; }
   const mv = e.target.closest('[data-move]');
   if (mv) { await moveItem(mv.dataset.move, Number(mv.dataset.dir)); return; }
   const ed = e.target.closest('[data-edit]');
   if (ed) openItemModal(items.find(i => i.id === ed.dataset.edit));
+}
+
+/* 段階／カテゴリの名前をまとめて変更（同じ名前にすれば別枠になっていたものが1つにまとまる） */
+async function renameLabel(kind, oldName, inPhase) {
+  const label = kind === 'phase' ? '段階' : 'カテゴリ';
+  const targets = items.filter(i => kind === 'phase'
+    ? phaseName(i) === oldName
+    : (((i.group || '').trim() || 'その他') === oldName && (inPhase == null || phaseName(i) === inPhase)));
+  if (!targets.length) return;
+  const input = prompt(`${label}「${oldName}」の新しい名前（${targets.length} 件をまとめて変更します）`, oldName === 'その他' || oldName === '全般' ? '' : oldName);
+  if (input == null) return;
+  const newName = input.trim();
+  if (newName === oldName) return;
+  try {
+    const batch = db.batch();
+    targets.forEach(i => batch.update(db.doc('items/' + i.id), { [kind]: newName }));
+    await batch.commit();
+    targets.forEach(i => { i[kind] = newName; });
+    renderItems(); renderPending(); renderEmployees();
+    toast(`${label}を「${newName || (kind === 'phase' ? '全般' : 'その他')}」に変更しました`, 'ok');
+  } catch (err) {
+    toast(authErrorMessage(err), 'err');
+    await reloadItems(); renderItems();
+  }
 }
 
 async function moveItem(id, dir) {
@@ -581,6 +609,27 @@ async function moveItem(id, dir) {
   }
 }
 
+/* 入力欄の下に、登録済みの値をタップで選べるボタンを出す */
+function valueChips(inputId, values) {
+  if (!values.length) return '';
+  return `<div class="value-chips" data-for="${inputId}">${values.map(v => `<button type="button" class="chip" data-value="${esc(v)}">${esc(v)}</button>`).join('')}</div>`;
+}
+function bindValueChips(root) {
+  $$('.value-chips', root).forEach(box => {
+    box.addEventListener('click', e => {
+      const b = e.target.closest('[data-value]');
+      if (!b) return;
+      const input = $('#' + box.dataset.for);
+      if (!input) return;
+      input.value = b.dataset.value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      $$('[data-value]', box).forEach(x => x.classList.toggle('active', x === b));
+    });
+  });
+}
+function existingPhases() { return [...new Set(items.map(i => (i.phase || '').trim()).filter(Boolean))]; }
+function existingGroups() { return [...new Set(items.map(i => (i.group || '').trim()).filter(Boolean))]; }
+
 function phaseDatalist(id) {
   const phases = [...new Set(items.map(i => (i.phase || '').trim()).filter(Boolean))];
   return `<datalist id="${id}">${phases.map(p => `<option value="${esc(p)}">`).join('')}</datalist>`;
@@ -600,13 +649,15 @@ function openItemModal(item) {
         <select id="it-type">${['check', 'text', 'video'].map(t => `<option value="${t}" ${it.type === t ? 'selected' : ''}>${TYPE_LABELS[t]}</option>`).join('')}</select>
       </label>
       <label>段階（任意）
-        <input id="it-phase" list="it-phase-list" value="${esc(it.phase || '')}" placeholder="例：1週目">
+        <input id="it-phase" list="it-phase-list" value="${esc(it.phase || '')}" placeholder="例：1週目" autocomplete="off">
         ${phaseDatalist('it-phase-list')}
       </label>
+      ${valueChips('it-phase', existingPhases())}
       <label>カテゴリ（任意）
-        <input id="it-group" list="it-group-list" value="${esc(it.group || '')}" placeholder="例：座学系 / 実践編">
+        <input id="it-group" list="it-group-list" value="${esc(it.group || '')}" placeholder="例：座学系 / 実践編" autocomplete="off">
         ${groupDatalist('it-group-list')}
       </label>
+      ${valueChips('it-group', existingGroups())}
       <label>題名<input id="it-title" value="${esc(it.title)}" required></label>
       <label>説明（任意）<textarea id="it-desc" rows="5">${esc(it.description || '')}</textarea></label>
       <label id="it-video-wrap" ${it.type === 'video' ? '' : 'hidden'}>ビデオのURL
@@ -621,6 +672,7 @@ function openItemModal(item) {
       </div>
     </form>`);
   $('#it-type').addEventListener('change', e => { $('#it-video-wrap').hidden = e.target.value !== 'video'; });
+  bindValueChips($('#modal'));
   $('#it-cancel').addEventListener('click', closeModal);
   if (!isNew) $('#it-delete').addEventListener('click', async () => {
     if (!confirm(`「${it.title}」を削除しますか？`)) return;
@@ -751,13 +803,15 @@ function openBulkModal() {
         </select>
       </label>
       <label>段階（貼り付けた中に段階の見出しが無いときに使います）
-        <input id="bk-phase" list="bk-phase-list" placeholder="例：1週目">
+        <input id="bk-phase" list="bk-phase-list" placeholder="例：1週目" autocomplete="off">
         ${phaseDatalist('bk-phase-list')}
       </label>
+      ${valueChips('bk-phase', existingPhases())}
       <label>カテゴリ（貼り付けた中にカテゴリの見出しが無いときに使います）
-        <input id="bk-group" list="bk-group-list" placeholder="例：座学系">
+        <input id="bk-group" list="bk-group-list" placeholder="例：座学系" autocomplete="off">
         ${groupDatalist('bk-group-list')}
       </label>
+      ${valueChips('bk-group', existingGroups())}
       <label>項目
         <textarea id="bk-text" rows="10" placeholder="出勤時の挨拶｜元気よく「おはようございます」&#10;タイムカードの押し方&#10;接客マナー動画｜視聴後に責任者へ報告｜https://..."></textarea>
       </label>
@@ -776,6 +830,7 @@ function openBulkModal() {
     $('#bk-preview').innerHTML = `${rows.length} 件を登録します（チェック ${rows.filter(r => r.type === 'check').length}・説明あり ${rows.filter(r => r.type === 'text').length}・ビデオ ${rows.filter(r => r.type === 'video').length}）<br>${byPhase.join('<br>')}`;
   };
   ['bk-text', 'bk-phase', 'bk-group'].forEach(id => $('#' + id).addEventListener('input', preview));
+  bindValueChips($('#modal'));
   $('#bk-type').addEventListener('change', preview);
   $('#bk-cancel').addEventListener('click', closeModal);
   $('#bulk-form').addEventListener('submit', async e => {
