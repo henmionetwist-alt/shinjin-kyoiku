@@ -204,6 +204,18 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
   margin-left: 8px; padding: 2px 4px; cursor: pointer; text-decoration: underline;
 }
 
+/* ---- 項目メモ ---- */
+.memo { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.memo label { margin-bottom: 6px; }
+.memo textarea { font-size: 15px; }
+.memo-actions { display: flex; align-items: center; gap: 8px; }
+.memo-actions .btn { margin-left: auto; }
+.memo-mark { font-size: 14px; }
+.memo-view {
+  background: #fff8e1; border-left: 3px solid var(--warn); border-radius: 6px;
+  padding: 5px 8px; margin-top: 4px; font-size: 13px; color: var(--text); white-space: pre-wrap;
+}
+
 /* ---- 絞り込みチップ ---- */
 .filter-row { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; align-items: center; padding-bottom: 2px; }
 .chip {

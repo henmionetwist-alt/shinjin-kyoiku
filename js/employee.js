@@ -1,7 +1,7 @@
 /* ===== 社員側 ===== */
 
 let me = null;
-let items = [], done = {}, approvals = {}, unlocked = {}, template = [], myReports = [];
+let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, template = [], myReports = [];
 let appSettings = { phaseLock: false };
 const visibleItems = () => unlockedItems(items, unlocked, appSettings.phaseLock);
 let trainingFilter = 'all';
@@ -109,6 +109,7 @@ async function loadAll() {
   ]);
   items = it;
   done = prog.exists ? (prog.data().done || {}) : {};
+  memos = prog.exists ? (prog.data().memos || {}) : {};
   approvals = appr.exists ? (appr.data().items || {}) : {};
   unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
   appSettings = app;
@@ -231,16 +232,25 @@ function renderItem(it) {
   const quick = (st === 'none' && it.type === 'check')
     ? `<button class="btn btn-primary btn-sm" data-done="${it.id}">履修</button>`
     : `<span class="chev">›</span>`;
+  const memo = memos[it.id];
+  const memoHtml = `<div class="memo">
+      <label>自分のメモ <span class="muted">（責任者にも見えます）</span>
+        <textarea data-memo="${it.id}" rows="2" placeholder="気づき・質問・覚えておきたいこと">${esc(memo ? memo.text : '')}</textarea>
+      </label>
+      <div class="memo-actions"><span class="muted small">${memo ? fmtDateTime(memo.at) + ' 保存' : ''}</span><button class="btn btn-ghost btn-sm" data-save-memo="${it.id}">メモを保存</button></div>
+    </div>`;
   return `<div class="item item-${st} ${isOpen ? 'open' : ''}" data-item="${it.id}">
     <div class="item-head" data-toggle>
       <span class="badge badge-${st}">${STATUS_LABELS[st]}</span>
       <span class="item-title">${esc(it.title)}</span>
+      ${memo ? '<span class="memo-mark" title="メモあり">📝</span>' : ''}
       ${quick}
     </div>
     <div class="item-body" ${isOpen ? '' : 'hidden'}>
       ${it.type === 'video' && it.videoUrl ? `<a class="btn btn-video" href="${esc(it.videoUrl)}" target="_blank" rel="noopener">▶ ビデオを見る</a>` : ''}
       ${it.description ? `<p class="item-desc">${nl2br(it.description)}</p>` : ''}
       <div class="item-actions">${actions}</div>
+      ${memoHtml}
     </div>
   </div>`;
 }
@@ -250,6 +260,9 @@ function onTrainingClick(e) {
   if (doneBtn) { markDone(doneBtn.dataset.done, doneBtn); return; }
   const undoBtn = e.target.closest('[data-undo]');
   if (undoBtn) { undoDone(undoBtn.dataset.undo, undoBtn); return; }
+  const memoBtn = e.target.closest('[data-save-memo]');
+  if (memoBtn) { saveMemo(memoBtn.dataset.saveMemo, memoBtn); return; }
+  if (e.target.closest('.memo')) return;
   if (e.target.closest('a')) return;
   const phaseBtn = e.target.closest('[data-phase]');
   if (phaseBtn) { selectedPhase = phaseBtn.dataset.phase; renderTraining(); return; }
@@ -273,6 +286,29 @@ async function markDone(id, btn) {
     done[id] = now;
     toast('履修済みにしました。責任者の確認をお待ちください', 'ok');
     renderTraining(); renderHome();
+  } catch (err) {
+    toast(authErrorMessage(err), 'err');
+    setBusy(btn, false);
+  }
+}
+
+async function saveMemo(id, btn) {
+  const ta = $(`textarea[data-memo="${id}"]`);
+  const text = (ta ? ta.value : '').trim();
+  setBusy(btn, true, '保存中…');
+  try {
+    if (text) {
+      const entry = { text, at: Date.now() };
+      await db.doc('progress/' + me.uid).set({ memos: { [id]: entry } }, { merge: true });
+      memos[id] = entry;
+      toast('メモを保存しました', 'ok');
+    } else if (memos[id]) {
+      await db.doc('progress/' + me.uid).update({ ['memos.' + id]: FV.delete() });
+      delete memos[id];
+      toast('メモを消しました');
+    }
+    openItems.add(id);
+    renderTraining();
   } catch (err) {
     toast(authErrorMessage(err), 'err');
     setBusy(btn, false);

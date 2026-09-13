@@ -2,7 +2,7 @@
 
 let me = null;
 let employees = [], items = [], template = [], admins = [], reports = [];
-const progressMap = {}, approvalsMap = {}, unlockedMap = {};
+const progressMap = {}, approvalsMap = {}, unlockedMap = {}, memosMap = {};
 let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
 let currentEmp = null, empNotes = [], empReports = [];
@@ -153,6 +153,7 @@ async function loadProgress() {
   employees.forEach((e, i) => {
     const p = results[i * 2], a = results[i * 2 + 1];
     progressMap[e.id] = p.exists ? (p.data().done || {}) : {};
+    memosMap[e.id] = p.exists ? (p.data().memos || {}) : {};
     approvalsMap[e.id] = a.exists ? (a.data().items || {}) : {};
     unlockedMap[e.id] = a.exists ? (a.data().unlocked || {}) : {};
   });
@@ -217,6 +218,11 @@ function renderPhaseLockSetting() {
 }
 
 /* ================= 確認待ち ================= */
+function memoView(uid, itemId) {
+  const m = (memosMap[uid] || {})[itemId];
+  return m ? `<div class="memo-view">📝 ${esc(m.text)}<span class="muted small"> ${fmtDateTime(m.at)}</span></div>` : '';
+}
+
 function pendingFor(uid) {
   return pubItems().filter(i => statusOf(i.id, progressMap[uid], approvalsMap[uid]) === 'pending');
 }
@@ -233,7 +239,7 @@ function renderPending() {
       <div class="card-head"><b>${esc(e.name)}</b><button class="btn btn-ghost btn-sm" data-approve-all="${e.id}">すべて承認（${pend.length}）</button></div>
       ${pend.map(i => `<div class="row">
         <div class="row-main"><span class="badge badge-type">${TYPE_LABELS[i.type] || ''}</span> ${esc(i.title)}
-          <div class="muted small">${esc([i.phase, i.group].filter(Boolean).join(' / '))}${[i.phase, i.group].some(Boolean) ? '　' : ''}${fmtDateTime(progressMap[e.id][i.id])} に履修</div></div>
+          <div class="muted small">${esc([i.phase, i.group].filter(Boolean).join(' / '))}${[i.phase, i.group].some(Boolean) ? '　' : ''}${fmtDateTime(progressMap[e.id][i.id])} に履修</div>${memoView(e.id, i.id)}</div>
         <button class="btn btn-primary btn-sm" data-approve="${e.id}" data-item="${i.id}">✅ 承認</button>
       </div>`).join('')}
     </div>`);
@@ -311,6 +317,7 @@ function renderEmployees() {
         ${e.active === false ? '<span class="badge badge-none">停止中</span>' : ''}
         ${s.pending ? `<span class="badge badge-pending">確認待ち ${s.pending}</span>` : ''}
         ${(() => { const n = canUnlockNext(e.id); return n && n.ready ? `<span class="badge badge-approved">「${esc(n.next)}」を許可できます</span>` : ''; })()}
+        ${Object.keys(memosMap[e.id] || {}).length ? `<span class="badge badge-type">📝 メモ ${Object.keys(memosMap[e.id]).length}</span>` : ''}
       </div>
       <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>
       <div class="emp-meta"><span>承認 ${s.approved}/${s.total}（${pct}%）</span><span>最終日報 ${last ? fmtYmd(last.date) : 'なし'}</span></div>
@@ -422,7 +429,7 @@ function renderEmpDetail() {
     const sub = st === 'approved' ? `${esc(appr[i.id].by || '')} ${fmtDateTime(appr[i.id].at)}`
       : st === 'pending' ? `${fmtDateTime(done[i.id])} に履修` : '';
     return `<div class="row">
-      <div class="row-main"><span class="badge badge-${st}">${STATUS_LABELS[st]}</span> ${esc(i.title)}${sub ? `<div class="muted small">${sub}</div>` : ''}</div>
+      <div class="row-main"><span class="badge badge-${st}">${STATUS_LABELS[st]}</span> ${esc(i.title)}${sub ? `<div class="muted small">${sub}</div>` : ''}${memoView(e.id, i.id)}</div>
       ${action}
     </div>`;
   }).join('')}`).join('');

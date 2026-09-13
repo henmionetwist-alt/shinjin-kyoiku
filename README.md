@@ -47,7 +47,7 @@ icons/              アイコン
 ## ファイルを更新したのに画面が変わらないとき
 
 バージョン番号は3か所で管理しています（更新用 ZIP では毎回そろえて上げてあります）。
-- `index.html` / `admin.html` の `?v=9`
+- `index.html` / `admin.html` の `?v=10`
 - `js/common.js` の `APP_VERSION`
 - `version.json`
 
@@ -66,7 +66,7 @@ icons/              アイコン
 | `admins/{メール}` | 責任者。ドキュメントがあれば責任者扱い |
 | `employees/{uid}` | 社員（name, email, active） |
 | `items/{id}` | 教育項目（title, description, type, videoUrl, phase＝段階, group＝カテゴリ, order, published） |
-| `progress/{uid}` | 社員が「履修済み」にした項目（done: {itemId: 時刻}） |
+| `progress/{uid}` | 社員が「履修済み」にした項目（done: {itemId: 時刻}）と項目メモ（memos: {itemId: {text, at}}） |
 | `approvals/{uid}` | 責任者の承認（items: {itemId: {at, by}}）と段階の許可（unlocked: {段階名: true}） |
 | `reports/{id}` | 日報（uid, name, date, checks, text, confirmations） |
 | `notes/{uid}` | 責任者メモ（entries: [{text, author, at}]） |
