@@ -43,8 +43,12 @@ function canonicalRomaji(kana, from) {
 }
 
 function newTypingWord(state) {
-  const pool = practiceWords.filter(w => w !== state.word);
+  // 1回の練習の中では同じ言葉を出さない（全部出し切ったら最初から）
+  state.used = state.used || new Set();
+  let pool = practiceWords.filter(w => !state.used.has(w.kana) && w !== state.word);
+  if (!pool.length) { state.used.clear(); pool = practiceWords.filter(w => w !== state.word); }
   const w = pool[Math.floor(Math.random() * pool.length)] || practiceWords[0];
+  state.used.add(w.kana);
   state.word = w;
   state.kana = toHiragana(w.kana);
   state.pos = 0; state.buf = ''; state.typed = ''; state.nPending = false;
@@ -229,7 +233,10 @@ function startShortcuts() {
   stopPracticeSession();
   const setKeys = $$('input[name="sc-set"]:checked').map(i => i.value);
   if (!setKeys.length) { toast('練習する種類を1つ以上選んでください', 'err'); return; }
-  const pool = setKeys.flatMap(k => SHORTCUT_SETS[k].items.map(it => ({ ...it, set: SHORTCUT_SETS[k].name })));
+  // 同じキー（Ctrl + F など）が複数の種類にある場合は1問にまとめる
+  const seen = new Set();
+  const pool = setKeys.flatMap(k => SHORTCUT_SETS[k].items.map(it => ({ ...it, set: SHORTCUT_SETS[k].name })))
+    .filter(it => { const key = [it.ctrl ? 'c' : '', it.shift ? 's' : '', it.alt ? 'a' : '', it.show].join('|'); if (seen.has(key)) return false; seen.add(key); return true; });
   const qs = [...pool].sort(() => Math.random() - 0.5).slice(0, SHORTCUT_QUESTIONS);
   const state = { kind: 'shortcuts', qs, idx: 0, misses: 0, qMiss: 0, correct: 0, startedAt: null, timer: null, sets: setKeys.map(k => SHORTCUT_SETS[k].name).join('・') };
   showSession(`

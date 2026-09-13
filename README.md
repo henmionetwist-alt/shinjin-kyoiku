@@ -49,7 +49,7 @@ icons/              アイコン
 ## ファイルを更新したのに画面が変わらないとき
 
 バージョン番号は3か所で管理しています（更新用 ZIP では毎回そろえて上げてあります）。
-- `index.html` / `admin.html` の `?v=12`
+- `index.html` / `admin.html` の `?v=13`
 - `js/common.js` の `APP_VERSION`
 - `version.json`
 
