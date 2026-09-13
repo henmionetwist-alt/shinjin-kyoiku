@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>新人教育</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="新人教育">
+<meta name="theme-color" content="#1f6f50">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="view-loading" class="view center"><div class="spinner"></div></div>
+
+<div id="view-login" class="view" hidden>
+  <div class="login-wrap">
+    <div class="login-logo">✓</div>
+    <h1 class="app-name">新人教育</h1>
+    <p class="muted small">責任者から受け取ったメールアドレスとパスワードでログインします</p>
+    <form id="login-form" class="card">
+      <label>メールアドレス
+        <input id="login-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required>
+      </label>
+      <label>パスワード
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="error"></p>
+      <button id="login-btn" class="btn btn-primary btn-block" type="submit">ログイン</button>
+      <a href="#" id="login-reset" class="link-sm">パスワードを忘れた場合</a>
+    </form>
+    <p class="muted small">責任者の方は <a href="admin.html">責任者画面</a> へ</p>
+  </div>
+</div>
+
+<div id="view-blocked" class="view" hidden>
+  <div class="login-wrap">
+    <div class="card">
+      <p id="blocked-msg"></p>
+      <div id="blocked-actions"></div>
+      <button id="blocked-logout" class="btn btn-ghost btn-block">ログアウト</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-main" class="view" hidden>
+  <header class="app-header">
+    <span class="app-name">新人教育</span>
+    <span id="me-name" class="me-name"></span>
+  </header>
+  <main>
+
+    <section class="tab-panel" data-tab="home">
+      <div class="card">
+        <p class="muted small">おつかれさまです</p>
+        <h2 id="home-greet"></h2>
+      </div>
+      <div class="card">
+        <h3>教育の進み具合</h3>
+        <div class="big-count"><span id="home-approved">0</span><small>/ <span id="home-total">0</span> 承認済み</small></div>
+        <div class="progress"><div id="home-bar" class="progress-bar" style="width:0%"></div></div>
+        <div class="legend"><span class="l-none"><i></i>未着手</span><span class="l-pending"><i></i>確認待ち</span><span class="l-approved"><i></i>承認済み</span></div>
+        <div id="home-phases"></div>
+        <p id="home-next" class="muted small"></p>
+        <button class="btn btn-primary btn-block" data-goto="training">教育項目を見る</button>
+      </div>
+      <div class="card">
+        <h3>今日の日報</h3>
+        <p id="home-report"></p>
+        <button class="btn btn-primary btn-block" data-goto="report">日報を書く</button>
+      </div>
+      <button id="btn-logout" class="btn btn-ghost btn-block">ログアウト</button>
+    </section>
+
+    <section class="tab-panel" data-tab="training" hidden>
+      <div class="filter-row phase-chips" id="phase-chips"></div>
+      <div class="filter-row">
+        <button class="chip active" data-filter="all">すべて</button>
+        <button class="chip" data-filter="none">未着手</button>
+        <button class="chip" data-filter="pending">確認待ち</button>
+        <button class="chip" data-filter="approved">承認済み</button>
+      </div>
+      <div id="training-list"></div>
+    </section>
+
+    <section class="tab-panel" data-tab="report" hidden>
+      <form id="report-form" class="card">
+        <h3>日報を提出</h3>
+        <label>日付
+          <input id="report-date" type="date" required>
+        </label>
+        <div id="report-checks" class="checklist"></div>
+        <label>今日の内容・気づき
+          <textarea id="report-text" rows="5" placeholder="やったこと、わからなかったこと、明日やること など"></textarea>
+        </label>
+        <button id="report-submit" class="btn btn-primary btn-block" type="submit">提出する</button>
+      </form>
+      <h3 class="section-title">提出した日報</h3>
+      <div id="report-history"></div>
+    </section>
+
+  </main>
+  <nav class="tabbar">
+    <button data-tab="home" class="active"><span class="ico">🏠</span>ホーム</button>
+    <button data-tab="training"><span class="ico">📚</span>教育</button>
+    <button data-tab="report"><span class="ico">📝</span>日報</button>
+  </nav>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/common.js"></script>
+<script src="js/employee.js"></script>
+</body>
+</html>

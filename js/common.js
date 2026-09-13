@@ -1,0 +1,243 @@
+/* ===== 共通処理（社員側・責任者側で共有） ===== */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const FV = firebase.firestore.FieldValue;
+
+const TYPE_LABELS = { check: 'チェック', text: '説明あり', video: 'ビデオ' };
+const STATUS_LABELS = { none: '未着手', pending: '確認待ち', approved: '承認済み' };
+const MAX_ADMINS = 5;
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function nl2br(s) { return esc(s).replace(/\n/g, '<br>'); }
+
+/* ---- 日付 ---- */
+function toDate(v) {
+  if (!v) return null;
+  if (typeof v.toDate === 'function') return v.toDate();
+  if (v instanceof Date) return v;
+  if (typeof v === 'number') return new Date(v);
+  return null;
+}
+const pad2 = n => String(n).padStart(2, '0');
+function fmtDateTime(v) {
+  const d = toDate(v); if (!d) return '';
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+function fmtYmd(ymd) {
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  return `${m}/${d}(${WEEK[dt.getDay()]})`;
+}
+
+/* ---- 画面まわり ---- */
+let toastTimer;
+function toast(msg, type = '') {
+  let t = $('#toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 2800);
+}
+
+function showView(id) {
+  $$('.view').forEach(v => { v.hidden = (v.id !== id); });
+  window.scrollTo(0, 0);
+}
+
+function setTab(name) {
+  $$('.tab-panel').forEach(p => { p.hidden = (p.dataset.tab !== name); });
+  $$('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  window.scrollTo(0, 0);
+}
+
+function setBusy(btn, busy, label) {
+  if (!btn) return;
+  if (busy) {
+    btn.dataset.label = btn.textContent;
+    btn.textContent = label || '処理中…';
+    btn.disabled = true;
+  } else {
+    if (btn.dataset.label) btn.textContent = btn.dataset.label;
+    btn.disabled = false;
+  }
+}
+
+function applyAppName(suffix) {
+  const name = (typeof APP_NAME === 'string' && APP_NAME) ? APP_NAME : '新人教育';
+  const full = suffix ? `${name} ${suffix}` : name;
+  $$('.app-name').forEach(el => { el.textContent = name; });
+  document.title = full;
+  const meta = $('meta[name="apple-mobile-web-app-title"]');
+  if (meta) meta.content = full;
+}
+
+function authErrorMessage(err) {
+  const code = (err && err.code) || '';
+  const map = {
+    'auth/invalid-email': 'メールアドレスの形式が正しくありません',
+    'auth/user-disabled': 'このアカウントは無効化されています',
+    'auth/user-not-found': 'メールアドレスまたはパスワードが違います',
+    'auth/wrong-password': 'メールアドレスまたはパスワードが違います',
+    'auth/invalid-credential': 'メールアドレスまたはパスワードが違います',
+    'auth/invalid-login-credentials': 'メールアドレスまたはパスワードが違います',
+    'auth/missing-password': 'パスワードを入力してください',
+    'auth/too-many-requests': '試行回数が多すぎます。しばらくしてからお試しください',
+    'auth/email-already-in-use': 'このメールアドレスはすでに登録されています',
+    'auth/weak-password': 'パスワードは6文字以上にしてください',
+    'auth/network-request-failed': '通信エラーです。電波状況を確認してください',
+    'auth/unauthorized-domain': 'このサイトのドメインが Firebase で承認されていません（Authentication → 設定 → 承認済みドメイン に追加してください）',
+    'auth/operation-not-allowed': 'Firebase でメール／パスワードのログインが有効になっていません',
+    'permission-denied': 'この操作の権限がありません（Firestore のルールとアカウント登録を確認してください）',
+    'unavailable': '通信できませんでした。電波状況を確認してください',
+  };
+  if (map[code]) return map[code];
+  if (err && /api-key|apiKey|invalid-api-key/i.test(err.message || '')) return 'firebase-config.js の設定が貼り付けられていません';
+  return (err && err.message) || '不明なエラーが起きました';
+}
+
+/* ---- Firestore 共通 ---- */
+async function fetchItems(publishedOnly) {
+  const snap = await db.collection('items').get();
+  let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (publishedOnly) items = items.filter(i => i.published !== false);
+  items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return items;
+}
+
+function phaseName(it) { return (it.phase || '').trim() || '全般'; }
+
+/* 段階 → カテゴリ の2段でまとめる */
+function groupByPhase(items) {
+  const phases = []; const idx = {};
+  for (const it of items) {
+    const p = phaseName(it);
+    if (!(p in idx)) { idx[p] = phases.length; phases.push({ name: p, items: [] }); }
+    phases[idx[p]].items.push(it);
+  }
+  phases.forEach(p => { p.groups = groupItems(p.items); });
+  return phases;
+}
+
+/* いま取り組む段階（未承認が残っている最初の段階） */
+function currentPhase(items, done, approvals) {
+  const phases = groupByPhase(items);
+  const cur = phases.find(p => p.items.some(i => statusOf(i.id, done, approvals) !== 'approved'));
+  return (cur || phases[phases.length - 1] || { name: '' }).name;
+}
+
+function groupItems(items) {
+  const groups = []; const idx = {};
+  for (const it of items) {
+    const g = (it.group || '').trim() || 'その他';
+    if (!(g in idx)) { idx[g] = groups.length; groups.push({ name: g, items: [] }); }
+    groups[idx[g]].items.push(it);
+  }
+  return groups;
+}
+
+async function fetchTemplate() {
+  const snap = await db.doc('settings/reportTemplate').get();
+  return snap.exists ? (snap.data().items || []) : [];
+}
+
+function statusOf(itemId, done, approvals) {
+  if (approvals && approvals[itemId]) return 'approved';
+  if (done && done[itemId]) return 'pending';
+  return 'none';
+}
+
+function progressSummary(items, done, approvals) {
+  let approved = 0, pending = 0;
+  for (const it of items) {
+    const s = statusOf(it.id, done, approvals);
+    if (s === 'approved') approved++; else if (s === 'pending') pending++;
+  }
+  return { total: items.length, approved, pending, none: items.length - approved - pending };
+}
+
+/* 進捗をマス目で表示（1項目＝1マス） */
+function stampGrid(items, done, approvals) {
+  if (!items.length) return '';
+  return `<div class="stamps">${items.map(i => {
+    const s = statusOf(i.id, done, approvals);
+    return `<span class="stamp stamp-${s}" title="${esc(i.title)}"></span>`;
+  }).join('')}</div>`;
+}
+
+/* ---- モーダル ---- */
+function openModal(html) {
+  closeModal();
+  const bd = document.createElement('div');
+  bd.className = 'modal-backdrop';
+  bd.id = 'modal';
+  bd.innerHTML = `<div class="modal">${html}</div>`;
+  bd.addEventListener('click', e => { if (e.target === bd) closeModal(); });
+  document.body.appendChild(bd);
+  document.body.classList.add('modal-open');
+  return bd;
+}
+function closeModal() {
+  const m = $('#modal');
+  if (m) m.remove();
+  document.body.classList.remove('modal-open');
+}
+
+/* ---- ログイン画面（両画面共通） ---- */
+function bindLoginForm() {
+  const form = $('#login-form');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('#login-email').value.trim();
+    const pw = $('#login-password').value;
+    const btn = $('#login-btn');
+    const errEl = $('#login-error');
+    errEl.textContent = '';
+    setBusy(btn, true, 'ログイン中…');
+    try {
+      await auth.signInWithEmailAndPassword(email, pw);
+    } catch (err) {
+      errEl.textContent = authErrorMessage(err);
+    } finally {
+      setBusy(btn, false);
+    }
+  });
+  $('#login-reset').addEventListener('click', async e => {
+    e.preventDefault();
+    const email = ($('#login-email').value || '').trim() || prompt('登録しているメールアドレスを入力してください');
+    if (!email) return;
+    try {
+      await auth.sendPasswordResetEmail(email);
+      toast('パスワード再設定メールを送りました', 'ok');
+    } catch (err) {
+      toast(authErrorMessage(err), 'err');
+    }
+  });
+}
+
+/* 別アカウントを作成する（管理者のログインを維持したまま） */
+async function createAuthUser(email, password) {
+  let app2;
+  try { app2 = firebase.app('secondary'); }
+  catch (e) { app2 = firebase.initializeApp(firebaseConfig, 'secondary'); }
+  const auth2 = app2.auth();
+  await auth2.setPersistence(firebase.auth.Auth.Persistence.NONE);
+  const cred = await auth2.createUserWithEmailAndPassword(email, password);
+  const uid = cred.user.uid;
+  await auth2.signOut();
+  return uid;
+}

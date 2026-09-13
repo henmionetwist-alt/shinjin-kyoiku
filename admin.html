@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>新人教育 責任者</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="新人教育 責任者">
+<meta name="theme-color" content="#2f4c7a">
+<link rel="manifest" href="manifest-admin.json">
+<link rel="apple-touch-icon" href="icons/admin-180.png">
+<link rel="icon" href="icons/admin-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin">
+
+<div id="view-loading" class="view center"><div class="spinner"></div></div>
+
+<div id="view-login" class="view" hidden>
+  <div class="login-wrap">
+    <div class="login-logo">✓✓</div>
+    <h1><span class="app-name">新人教育</span> 責任者</h1>
+    <p class="muted small">責任者用のメールアドレスとパスワードでログインします</p>
+    <form id="login-form" class="card">
+      <label>メールアドレス
+        <input id="login-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required>
+      </label>
+      <label>パスワード
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="error"></p>
+      <button id="login-btn" class="btn btn-primary btn-block" type="submit">ログイン</button>
+      <a href="#" id="login-reset" class="link-sm">パスワードを忘れた場合</a>
+    </form>
+    <p class="muted small">社員の方は <a href="index.html">社員画面</a> へ</p>
+  </div>
+</div>
+
+<div id="view-blocked" class="view" hidden>
+  <div class="login-wrap">
+    <div class="card">
+      <p id="blocked-msg"></p>
+      <button id="blocked-logout" class="btn btn-ghost btn-block">ログアウト</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-main" class="view" hidden>
+  <header class="app-header">
+    <span class="app-name">新人教育</span>
+    <span class="badge-admin">責任者</span>
+    <span id="me-name" class="me-name"></span>
+  </header>
+  <main>
+
+    <section class="tab-panel" data-tab="pending">
+      <div class="stats-row" id="pending-summary"></div>
+      <div id="pending-list"></div>
+    </section>
+
+    <section class="tab-panel" data-tab="employees" hidden>
+      <div id="emp-list-view">
+        <button class="btn btn-primary btn-block" id="btn-add-emp">＋ 社員を追加</button>
+        <div id="emp-list"></div>
+      </div>
+      <div id="emp-detail-view" hidden>
+        <button class="btn btn-ghost btn-sm" id="btn-emp-back">‹ 社員一覧に戻る</button>
+        <div id="emp-detail"></div>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-tab="reports" hidden>
+      <div class="filter-row">
+        <button class="chip active" data-rfilter="all">すべて</button>
+        <button class="chip" data-rfilter="unconfirmed">自分が未確認</button>
+        <select id="report-emp-filter"><option value="">全員</option></select>
+      </div>
+      <div id="reports-list"></div>
+    </section>
+
+    <section class="tab-panel" data-tab="items" hidden>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-primary" id="btn-add-item">＋ 項目を追加</button>
+        <button class="btn btn-ghost" id="btn-bulk-items">まとめ登録</button>
+      </div>
+      <p class="muted small" style="margin:8px 4px">項目をタップすると編集できます。▲▼で並び替え</p>
+      <div class="filter-row phase-chips" id="items-phase-chips"></div>
+      <div id="items-list"></div>
+    </section>
+
+    <section class="tab-panel" data-tab="settings" hidden>
+      <div class="card">
+        <h3>日報のチェック項目</h3>
+        <p class="muted small">社員が日報を出すときに表示されるチェック欄です</p>
+        <div id="tpl-list"></div>
+        <div class="inline-form">
+          <input id="tpl-new" placeholder="例：朝礼に参加した">
+          <button class="btn btn-ghost" id="tpl-add" type="button">追加</button>
+        </div>
+        <button class="btn btn-primary btn-block" id="tpl-save">チェック項目を保存</button>
+      </div>
+      <div class="card">
+        <h3>責任者アカウント <span id="admin-count" class="muted small"></span></h3>
+        <div id="admin-list"></div>
+        <button class="btn btn-ghost btn-block" id="btn-add-admin">＋ 責任者を追加</button>
+      </div>
+      <div class="card">
+        <h3>自分の設定</h3>
+        <p>表示名：<b id="my-name-disp"></b> <button class="btn btn-ghost btn-sm" id="btn-edit-my-name">変更</button></p>
+        <p class="muted small">承認や日報の確認をしたときに、この名前が社員に表示されます</p>
+        <button class="btn btn-danger btn-block" id="btn-logout">ログアウト</button>
+      </div>
+    </section>
+
+  </main>
+  <nav class="tabbar">
+    <button data-tab="pending" class="active"><span class="ico">✅</span>確認待ち<span id="tab-badge-pending" class="tab-badge" hidden></span></button>
+    <button data-tab="employees"><span class="ico">👥</span>社員</button>
+    <button data-tab="reports"><span class="ico">📝</span>日報</button>
+    <button data-tab="items"><span class="ico">📚</span>項目</button>
+    <button data-tab="settings"><span class="ico">⚙️</span>設定</button>
+  </nav>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/common.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
