@@ -1,7 +1,7 @@
 /* ===== 練習（タイピング・ショートカット）社員側 ===== */
 
 const TYPING_SECONDS = 60;
-const SHORTCUT_QUESTIONS = 10;
+const SHORTCUT_QUESTIONS = SHORTCUT_QUESTIONS_TOTAL;
 let practiceSession = null;   // 進行中の練習
 let practiceWords = [];       // [{display, kana}]
 
@@ -93,6 +93,7 @@ function renderPractice() {
     <div class="card">
       <h3>⌨️ タイピング練習 <span class="muted small">${TYPING_SECONDS}秒</span></h3>
       <p class="muted small">出てきた言葉をローマ字で打ちます（shi / si、tsu / tu など、どの打ち方でもOK）。日本語入力（IME）はオフにしてください</p>
+      ${passBadge('typing', rec)}
       <div class="stats">
         <div><b>${tb ? tb.cpm : '－'}</b><span>ベスト 打鍵/分</span></div>
         <div><b>${tb ? tb.acc + '%' : '－'}</b><span>ベスト 正確率</span></div>
@@ -106,17 +107,27 @@ function renderPractice() {
       <h3>⌨️ ショートカット練習 <span class="muted small">${SHORTCUT_QUESTIONS}問</span></h3>
       <p class="muted small">「コピー」と出たら Ctrl + C を実際に押します。2回間違えると答えが表示されます</p>
       <div class="filter-row" style="flex-wrap:wrap">${setChips}</div>
+      ${passBadge('shortcuts', rec)}
       <div class="stats">
         <div><b>${sb ? sb.score + '/' + sb.total : '－'}</b><span>ベスト 正解</span></div>
         <div><b>${sb ? sb.seconds + '秒' : '－'}</b><span>ベスト タイム</span></div>
         <div><b>${rec.shortcuts && rec.shortcuts.history ? rec.shortcuts.history.length : 0}</b><span>回数</span></div>
       </div>
       <div class="btn-row"><button class="btn btn-ghost" id="shortcut-learn">一覧を見て覚える</button><button class="btn btn-primary" id="shortcut-start">練習を始める</button></div>
-      ${historyList(rec.shortcuts && rec.shortcuts.history, h => `${fmtDateTime(h.at)}　${h.score}/${h.total} 正解・${h.seconds}秒・${esc(h.sets || '')}`)}
+      ${historyList(rec.shortcuts && rec.shortcuts.history, h => `${fmtDateTime(h.at)}　${h.score}/${h.total} 正解・${h.seconds}秒${h.hints ? `・答えを見た ${h.hints} 問` : ''}・${esc(h.sets || '')}`)}
     </div>`;
   $('#typing-start').addEventListener('click', startTyping);
   $('#shortcut-start').addEventListener('click', startShortcuts);
   $('#shortcut-learn').addEventListener('click', () => startLearn());
+}
+function passBadge(kind, rec) {
+  const line = passLineText(kind, practicePass);
+  if (!line) return '';
+  const r = rec[kind] || {};
+  const passed = r.passedAt || practicePassed(kind, r, practicePass);
+  return passed
+    ? `<p class="pass-line pass-ok">🏅 合格（${fmtDateTime(r.passedAt || Date.now())}）　合格ライン：${line}</p>`
+    : `<p class="pass-line">合格ライン：${line}　<span class="muted">まだ達成していません</span></p>`;
 }
 function historyList(hist, fmt) {
   if (!hist || !hist.length) return '';
@@ -200,9 +211,12 @@ async function finishTyping(state) {
   const history = [...(prev.history || []), result].slice(-10);
   const best = !prev.best || result.cpm > prev.best.cpm || (result.cpm === prev.best.cpm && result.acc > prev.best.acc) ? { cpm: result.cpm, acc: result.acc, at: result.at } : prev.best;
   const isBest = best.at === result.at;
+  const data = { best, history };
+  const newlyPassed = !prev.passedAt && practicePassed('typing', { history: [result] }, practicePass);
+  if (prev.passedAt) data.passedAt = prev.passedAt; else if (newlyPassed) data.passedAt = result.at;
   $('#practice-session').innerHTML = `
     <div class="card practice-card">
-      <h3>結果 ${isBest ? '🎉 ベスト更新！' : ''}</h3>
+      <h3>結果 ${isBest ? '🎉 ベスト更新！' : ''}${newlyPassed ? ' 🏅 合格ライン達成！' : ''}</h3>
       <div class="stats">
         <div><b>${result.cpm}</b><span>打鍵/分</span></div>
         <div><b>${result.acc}%</b><span>正確率</span></div>
@@ -214,7 +228,8 @@ async function finishTyping(state) {
     </div>`;
   $('#ty-back').addEventListener('click', () => { stopPracticeSession(); $('#practice-session').hidden = true; $('#practice-home').hidden = false; renderPractice(); });
   $('#ty-again').addEventListener('click', startTyping);
-  await savePractice('typing', { best, history }, $('#ty-save-status'));
+  await savePractice('typing', data, $('#ty-save-status'));
+  if (newlyPassed) await autoCompleteItems('typing');
 }
 
 /* ---------- ショートカット ---------- */
@@ -238,7 +253,7 @@ function startShortcuts() {
   const pool = setKeys.flatMap(k => SHORTCUT_SETS[k].items.map(it => ({ ...it, set: SHORTCUT_SETS[k].name })))
     .filter(it => { const key = [it.ctrl ? 'c' : '', it.shift ? 's' : '', it.alt ? 'a' : '', it.show].join('|'); if (seen.has(key)) return false; seen.add(key); return true; });
   const qs = [...pool].sort(() => Math.random() - 0.5).slice(0, SHORTCUT_QUESTIONS);
-  const state = { kind: 'shortcuts', qs, idx: 0, misses: 0, qMiss: 0, correct: 0, startedAt: null, timer: null, sets: setKeys.map(k => SHORTCUT_SETS[k].name).join('・') };
+  const state = { kind: 'shortcuts', qs, idx: 0, misses: 0, qMiss: 0, correct: 0, hints: 0, hinted: false, startedAt: null, timer: null, sets: setKeys.map(k => SHORTCUT_SETS[k].name).join('・') };
   showSession(`
     <div class="card practice-card">
       <div class="practice-top"><span class="practice-time" id="sc-time">0</span><span class="muted small">秒　<span id="sc-no">1</span> / ${qs.length} 問・ミス <span id="sc-miss">0</span></span><button class="btn btn-ghost btn-sm" id="sc-quit">やめる</button></div>
@@ -252,17 +267,23 @@ function startShortcuts() {
     $('#sc-no').textContent = state.idx + 1; $('#sc-miss').textContent = state.misses;
     $('#sc-set').textContent = q.set; $('#sc-label').textContent = q.label;
   };
+  const reveal = () => {
+    if (!state.hinted) { state.hinted = true; state.hints++; }
+  };
   const advance = (ok) => {
     const prevQ = qs[state.idx];
+    const wasHinted = state.hinted;
     const card = $('.practice-card');
     if (card) { card.classList.remove('flash-ok', 'flash-miss'); void card.offsetWidth; card.classList.add(ok ? 'flash-ok' : 'flash-miss'); }
-    state.idx++; state.qMiss = 0;
+    state.idx++; state.qMiss = 0; state.hinted = false;
     if (state.idx >= qs.length) { finishShortcuts(state); return; }
-    $('#sc-feedback').textContent = ok ? `正解！ ${prevQ.show}：${prevQ.desc || ''}` : '';
+    $('#sc-feedback').textContent = ok
+      ? (wasHinted ? `${prevQ.show}：${prevQ.desc || ''}（答えを見たので正解には数えません）` : `正解！ ${prevQ.show}：${prevQ.desc || ''}`)
+      : '';
     paint();
   };
   $('#sc-quit').addEventListener('click', () => { stopPracticeSession(); renderPractice(); });
-  $('#sc-hint').addEventListener('click', () => { const q = qs[state.idx]; $('#sc-feedback').textContent = `答え：${q.show}（${q.desc || ''}）`; });
+  $('#sc-hint').addEventListener('click', () => { const q = qs[state.idx]; reveal(); $('#sc-feedback').textContent = `答え：${q.show}（${q.desc || ''}）※この問題は正解に数えません`; });
   $('#sc-skip').addEventListener('click', () => { state.misses++; advance(false); });
   state.onKey = e => {
     if (['control', 'shift', 'alt', 'meta'].includes((e.key || '').toLowerCase())) return;
@@ -274,10 +295,11 @@ function startShortcuts() {
       state.timer = setInterval(() => { $('#sc-time').textContent = Math.floor((Date.now() - state.startedAt) / 1000); }, 250);
     }
     const q = qs[state.idx];
-    if (shortcutMatches(e, q)) { state.correct++; advance(true); return; }
+    if (shortcutMatches(e, q)) { if (!state.hinted) state.correct++; advance(true); return; }
     state.misses++; state.qMiss++;
     $('#sc-miss').textContent = state.misses;
-    $('#sc-feedback').textContent = state.qMiss >= 2 ? `✕ 答え：${q.show}（${q.desc || ''}）` : '✕ もう一度';
+    if (state.qMiss >= 2) reveal();
+    $('#sc-feedback').textContent = state.qMiss >= 2 ? `✕ 答え：${q.show}（${q.desc || ''}）※この問題は正解に数えません` : '✕ もう一度';
     const card = $('.practice-card');
     if (card) { card.classList.remove('flash-ok', 'flash-miss'); void card.offsetWidth; card.classList.add('flash-miss'); }
   };
@@ -291,25 +313,47 @@ async function finishShortcuts(state) {
   document.removeEventListener('keydown', state.onKey, true);
   practiceSession = null;
   const seconds = state.startedAt ? Math.max(1, Math.round((Date.now() - state.startedAt) / 1000)) : 0;
-  const result = { at: Date.now(), score: state.correct, total: state.qs.length, misses: state.misses, seconds, sets: state.sets };
+  const result = { at: Date.now(), score: state.correct, total: state.qs.length, misses: state.misses, hints: state.hints, seconds, sets: state.sets };
   const prev = practiceRecords().shortcuts || {};
   const history = [...(prev.history || []), result].slice(-10);
   const better = !prev.best || result.score > prev.best.score || (result.score === prev.best.score && result.seconds < prev.best.seconds);
   const best = better ? { score: result.score, total: result.total, seconds: result.seconds, at: result.at } : prev.best;
+  const data = { best, history };
+  const newlyPassed = !prev.passedAt && practicePassed('shortcuts', { history: [result] }, practicePass);
+  if (prev.passedAt) data.passedAt = prev.passedAt; else if (newlyPassed) data.passedAt = result.at;
   $('#practice-session').innerHTML = `
     <div class="card practice-card">
-      <h3>結果 ${better ? '🎉 ベスト更新！' : ''}</h3>
+      <h3>結果 ${better ? '🎉 ベスト更新！' : ''}${newlyPassed ? ' 🏅 合格ライン達成！' : ''}</h3>
       <div class="stats">
         <div><b>${result.score}/${result.total}</b><span>正解</span></div>
         <div><b>${result.seconds}秒</b><span>タイム</span></div>
         <div><b>${result.misses}</b><span>ミス</span></div>
+        <div><b>${result.hints}</b><span>答えを見た</span></div>
       </div>
       <p class="muted small" id="sc-save-status">記録を保存中…</p>
       <div class="btn-row"><button class="btn btn-ghost" id="sc-back">戻る</button><button class="btn btn-primary" id="sc-again">もう一回</button></div>
     </div>`;
   $('#sc-back').addEventListener('click', () => { stopPracticeSession(); $('#practice-session').hidden = true; $('#practice-home').hidden = false; renderPractice(); });
   $('#sc-again').addEventListener('click', () => { $('#practice-session').hidden = true; $('#practice-home').hidden = false; renderPractice(); startShortcuts(); });
-  await savePractice('shortcuts', { best, history }, $('#sc-save-status'));
+  await savePractice('shortcuts', data, $('#sc-save-status'));
+  if (newlyPassed) await autoCompleteItems('shortcuts');
+}
+
+/* 合格したら、対応する教育項目を自動で「履修済み」にする（責任者の承認待ちになる） */
+async function autoCompleteItems(kind) {
+  const targets = items.filter(i => i.autoBy === kind && statusOf(i.id, done, approvals) === 'none');
+  if (!targets.length) return;
+  const now = Date.now();
+  const entry = {};
+  targets.forEach(i => { entry[i.id] = now; });
+  try {
+    await db.doc('progress/' + me.uid).set({ done: entry }, { merge: true });
+    Object.assign(done, entry);
+    renderHome(); renderTraining();
+    toast(`🏅 合格！「${targets.map(i => i.title).join('」「')}」を履修済みにしました。責任者の確認待ちです`, 'ok');
+  } catch (err) {
+    toast(authErrorMessage(err), 'err');
+  }
 }
 
 /* ---------- 保存 ---------- */

@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
   $('#pw-save').addEventListener('click', savePracticeWords);
+  $('#pass-save').addEventListener('click', savePassLine);
   $('#phase-lock').addEventListener('change', async e => {
     const on = e.target.checked;
     if (on && !confirm('段階の許可制をオンにします。\n許可していない段階は社員に表示されなくなります。\nいま進行中の段階と最初の段階は、全員分を自動で許可します。よろしいですか？')) { e.target.checked = false; return; }
@@ -183,6 +184,10 @@ function renderAll() {
 
 /* ---- 練習：言葉リストの設定 ---- */
 function renderPracticeSettings() {
+  const pass = practiceSettings.pass || {};
+  $('#pass-cpm').value = pass.typingCpm || '';
+  $('#pass-acc').value = pass.typingAcc || '';
+  $('#pass-sc').value = pass.shortcutScore || '';
   $('#pw-default').checked = practiceSettings.useDefault !== false;
   $('#pw-words').value = (practiceSettings.custom || []).map(w => w.display && w.display !== w.kana ? `${w.display}｜${w.kana}` : w.kana).join('\n');
 }
@@ -197,6 +202,26 @@ function parsePracticeWords(text) {
   });
   return { words, errors };
 }
+async function savePassLine() {
+  const num = id => { const v = Number($('#' + id).value); return isFinite(v) && v > 0 ? v : 0; };
+  const pass = { typingCpm: num('pass-cpm'), typingAcc: Math.min(100, num('pass-acc')), shortcutScore: Math.min(10, num('pass-sc')) };
+  const btn = $('#pass-save');
+  setBusy(btn, true, '保存中…');
+  try {
+    await db.doc('settings/practice').set({ pass, updatedAt: FV.serverTimestamp() }, { merge: true });
+    practiceSettings.pass = pass;
+    renderEmployees();
+    toast('合格ラインを保存しました', 'ok');
+  } catch (err) { toast(authErrorMessage(err), 'err'); }
+  finally { setBusy(btn, false); }
+}
+function passBadgesFor(uid) {
+  const pr = practiceMap[uid] || {}, pass = practiceSettings.pass || {};
+  const out = [];
+  if (passLineText('typing', pass) && (pr.typing && (pr.typing.passedAt || practicePassed('typing', pr.typing, pass)))) out.push('<span class="badge badge-approved">🏅 タイピング合格</span>');
+  if (passLineText('shortcuts', pass) && (pr.shortcuts && (pr.shortcuts.passedAt || practicePassed('shortcuts', pr.shortcuts, pass)))) out.push('<span class="badge badge-approved">🏅 ショートカット合格</span>');
+  return out.join(' ');
+}
 async function savePracticeWords() {
   const { words, errors } = parsePracticeWords($('#pw-words').value);
   const errEl = $('#pw-error');
@@ -205,8 +230,8 @@ async function savePracticeWords() {
   const btn = $('#pw-save');
   setBusy(btn, true, '保存中…');
   try {
-    await db.doc('settings/practice').set({ words, useDefault: $('#pw-default').checked, updatedAt: FV.serverTimestamp() });
-    practiceSettings = { useDefault: $('#pw-default').checked, custom: words };
+    await db.doc('settings/practice').set({ words, useDefault: $('#pw-default').checked, updatedAt: FV.serverTimestamp() }, { merge: true });
+    practiceSettings = { ...practiceSettings, useDefault: $('#pw-default').checked, custom: words };
     toast(`言葉リストを保存しました（追加 ${words.length} 語）`, 'ok');
   } catch (err) { toast(authErrorMessage(err), 'err'); }
   finally { setBusy(btn, false); }
@@ -216,11 +241,13 @@ function practiceRecordHtml(uid) {
   const t = pr.typing || {}, sc = pr.shortcuts || {};
   if (!t.best && !sc.best) return '<p class="muted small">まだ練習の記録はありません</p>';
   const last = (h, n) => (h || []).slice(-n).reverse();
+  const pass = practiceSettings.pass || {};
+  const passLine = (kind, rec) => { const line = passLineText(kind, pass); if (!line) return ''; const ok = rec.passedAt || practicePassed(kind, rec, pass); return ok ? ` <span class="badge badge-approved">🏅 合格</span>` : ` <span class="badge badge-none">合格ライン ${line} 未達</span>`; };
   return `
-    <div class="row"><div class="row-main"><b>タイピング</b>${t.best ? `<div class="muted small">ベスト ${t.best.cpm} 打鍵/分・正確率 ${t.best.acc}%（${fmtDateTime(t.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
+    <div class="row"><div class="row-main"><b>タイピング</b>${passLine('typing', t)}${t.best ? `<div class="muted small">ベスト ${t.best.cpm} 打鍵/分・正確率 ${t.best.acc}%（${fmtDateTime(t.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
       ${last(t.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.cpm} 打鍵/分・${h.acc}%・${h.words} 語</div>`).join('')}</div></div>
-    <div class="row"><div class="row-main"><b>ショートカット</b>${sc.best ? `<div class="muted small">ベスト ${sc.best.score}/${sc.best.total} 正解・${sc.best.seconds}秒（${fmtDateTime(sc.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
-      ${last(sc.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.score}/${h.total}・${h.seconds}秒・${esc(h.sets || '')}</div>`).join('')}</div></div>`;
+    <div class="row"><div class="row-main"><b>ショートカット</b>${passLine('shortcuts', sc)}${sc.best ? `<div class="muted small">ベスト ${sc.best.score}/${sc.best.total} 正解・${sc.best.seconds}秒（${fmtDateTime(sc.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
+      ${last(sc.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.score}/${h.total}・${h.seconds}秒${h.hints ? `・答えを見た ${h.hints}` : ''}・${esc(h.sets || '')}</div>`).join('')}</div></div>`;
 }
 
 /* ---- 段階の許可 ---- */
@@ -366,6 +393,7 @@ function renderEmployees() {
         ${s.pending ? `<span class="badge badge-pending">確認待ち ${s.pending}</span>` : ''}
         ${(() => { const n = canUnlockNext(e.id); return n && n.ready ? `<span class="badge badge-approved">「${esc(n.next)}」を許可できます</span>` : ''; })()}
         ${Object.keys(memosMap[e.id] || {}).length ? `<span class="badge badge-type">📝 メモ ${Object.keys(memosMap[e.id]).length}</span>` : ''}
+        ${passBadgesFor(e.id)}
       </div>
       <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>
       <div class="emp-meta"><span>承認 ${s.approved}/${s.total}（${pct}%）</span><span>最終日報 ${last ? fmtYmd(last.date) : 'なし'}</span></div>
@@ -702,7 +730,7 @@ function renderItems() {
         <span class="drag-handle" data-drag="${i.id}" title="ドラッグで並び替え">☰</span>
         <div class="order-btns"><button type="button" data-move="${i.id}" data-dir="-1">▲</button><button type="button" data-move="${i.id}" data-dir="1">▼</button></div>
         <div class="row-main" data-edit="${i.id}">
-          <span class="badge badge-type">${TYPE_LABELS[i.type] || ''}</span>${i.published === false ? ' <span class="badge badge-none">非公開</span>' : ''} ${esc(i.title)}
+          <span class="badge badge-type">${TYPE_LABELS[i.type] || ''}</span>${i.published === false ? ' <span class="badge badge-none">非公開</span>' : ''}${i.autoBy ? ` <span class="badge badge-approved">🏅 ${i.autoBy === 'typing' ? 'タイピング' : 'ショートカット'}合格で自動</span>` : ''} ${esc(i.title)}
           ${i.description ? `<div class="muted small clamp">${esc(i.description)}</div>` : ''}
         </div>
       </div>`).join('')}</div>`).join('')}`).join('');
@@ -896,6 +924,13 @@ function openItemModal(item) {
       <label id="it-video-wrap" ${it.type === 'video' ? '' : 'hidden'}>ビデオのURL
         <input id="it-video" type="url" value="${esc(it.videoUrl || '')}" placeholder="https://..." inputmode="url" autocapitalize="off">
       </label>
+      <label>練習の合格で自動履修（任意）
+        <select id="it-auto">
+          <option value="" ${!it.autoBy ? 'selected' : ''}>なし</option>
+          <option value="typing" ${it.autoBy === 'typing' ? 'selected' : ''}>タイピングの合格ライン達成で履修済みにする</option>
+          <option value="shortcuts" ${it.autoBy === 'shortcuts' ? 'selected' : ''}>ショートカットの合格ライン達成で履修済みにする</option>
+        </select>
+      </label>
       <label class="check"><input type="checkbox" id="it-pub" ${it.published !== false ? 'checked' : ''}><span>社員に公開する</span></label>
       <p id="it-error" class="error"></p>
       <div class="btn-row">
@@ -926,6 +961,7 @@ function openItemModal(item) {
       title: $('#it-title').value.trim(),
       description: $('#it-desc').value.trim(),
       videoUrl: $('#it-type').value === 'video' ? $('#it-video').value.trim() : '',
+      autoBy: $('#it-auto').value,
       published: $('#it-pub').checked,
       updatedAt: FV.serverTimestamp(),
     };

@@ -171,8 +171,32 @@ async function fetchPracticeWords() {
   const data = snap.exists ? snap.data() : {};
   const custom = (data.words || []).map(w => ({ display: w.display || w.kana, kana: w.kana })).filter(w => w.kana);
   const base = data.useDefault === false ? [] : DEFAULT_TYPING_WORDS.map(([display, kana]) => ({ display, kana }));
-  return { words: [...base, ...custom], useDefault: data.useDefault !== false, custom };
+  const pass = Object.assign({ typingCpm: 0, typingAcc: 0, shortcutScore: 0 }, data.pass || {});
+  return { words: [...base, ...custom], useDefault: data.useDefault !== false, custom, pass };
 }
+/* 合格ラインを満たした記録があるか */
+function practicePassed(kind, rec, pass) {
+  if (!rec || !pass) return false;
+  const hist = [...(rec.history || [])];
+  if (rec.best) hist.push(rec.best);
+  if (kind === 'typing') {
+    if (!pass.typingCpm && !pass.typingAcc) return false;
+    return hist.some(h => (h.cpm || 0) >= (pass.typingCpm || 0) && (h.acc || 0) >= (pass.typingAcc || 0));
+  }
+  if (!pass.shortcutScore) return false;
+  return hist.some(h => (h.score || 0) >= pass.shortcutScore);
+}
+function passLineText(kind, pass) {
+  if (!pass) return '';
+  if (kind === 'typing') {
+    const parts = [];
+    if (pass.typingCpm) parts.push(`${pass.typingCpm} 打鍵/分`);
+    if (pass.typingAcc) parts.push(`正確率 ${pass.typingAcc}%`);
+    return parts.join('・');
+  }
+  return pass.shortcutScore ? `${pass.shortcutScore} / ${SHORTCUT_QUESTIONS_TOTAL} 問正解` : '';
+}
+const SHORTCUT_QUESTIONS_TOTAL = 10;
 
 async function fetchTemplate() {
   const snap = await db.doc('settings/reportTemplate').get();
@@ -212,7 +236,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '13';
+const APP_VERSION = '14';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {

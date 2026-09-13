@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-admin.json">
 <link rel="apple-touch-icon" href="icons/admin-180.png">
 <link rel="icon" href="icons/admin-192.png">
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body class="admin">
 
@@ -118,6 +118,16 @@
         <button class="btn btn-primary btn-block" id="pw-save">言葉リストを保存</button>
       </div>
       <div class="card">
+        <h3>練習の合格ライン</h3>
+        <p class="muted small">達成した社員に「🏅 合格」バッジが付き、社員一覧にも表示されます。0 や空欄にすると判定しません。教育項目の編集画面で「合格で自動履修」を選ぶと、合格と同時にその項目が履修済み（確認待ち）になります</p>
+        <div class="btn-row" style="margin-top:0">
+          <label>タイピング 打鍵/分<input id="pass-cpm" type="number" min="0" inputmode="numeric" placeholder="例：150"></label>
+          <label>タイピング 正確率 %<input id="pass-acc" type="number" min="0" max="100" inputmode="numeric" placeholder="例：95"></label>
+        </div>
+        <label>ショートカット 正解数（10問中）<input id="pass-sc" type="number" min="0" max="10" inputmode="numeric" placeholder="例：9"></label>
+        <button class="btn btn-primary btn-block" id="pass-save">合格ラインを保存</button>
+      </div>
+      <div class="card">
         <h3>段階の許可制</h3>
         <label class="check"><input type="checkbox" id="phase-lock"><span>段階（1週目など）は責任者が許可するまで社員に表示しない</span></label>
         <p class="muted small" style="margin-top:8px">オンにすると、社員詳細画面に「段階の許可」欄が出て、社員ごとに段階を開放できます。次の段階が許可できる状態になると社員一覧に表示されます</p>
@@ -148,9 +158,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=13"></script>
-<script src="js/common.js?v=13"></script>
-<script src="js/practice-data.js?v=13"></script>
-<script src="js/admin.js?v=13"></script>
+<script src="js/firebase-config.js?v=14"></script>
+<script src="js/common.js?v=14"></script>
+<script src="js/practice-data.js?v=14"></script>
+<script src="js/admin.js?v=14"></script>
 </body>
 </html>

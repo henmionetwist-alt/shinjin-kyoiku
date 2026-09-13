@@ -3,6 +3,7 @@
 let me = null;
 let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, template = [], myReports = [];
 let practice = {};
+let practicePass = { typingCpm: 0, typingAcc: 0, shortcutScore: 0 };
 let appSettings = { phaseLock: false };
 const visibleItems = () => unlockedItems(items, unlocked, appSettings.phaseLock);
 let trainingFilter = 'all';
@@ -115,6 +116,7 @@ async function loadAll() {
   memos = prog.exists ? (prog.data().memos || {}) : {};
   practice = prog.exists ? (prog.data().practice || {}) : {};
   practiceWords = pw.words;
+  practicePass = pw.pass;
   approvals = appr.exists ? (appr.data().items || {}) : {};
   unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
   appSettings = app;
