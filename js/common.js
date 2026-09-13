@@ -150,6 +150,21 @@ function groupItems(items) {
   return groups;
 }
 
+/* アプリ設定（settings/app）: phaseLock = 段階の許可制 */
+async function fetchAppSettings() {
+  const snap = await db.doc('settings/app').get();
+  return Object.assign({ phaseLock: false }, snap.exists ? snap.data() : {});
+}
+/* 段階が社員に開放されているか */
+function isPhaseUnlocked(name, unlocked, phaseLock) {
+  return !phaseLock || !!(unlocked && unlocked[name]);
+}
+/* 開放済みの段階の項目だけに絞る */
+function unlockedItems(items, unlocked, phaseLock) {
+  if (!phaseLock) return items;
+  return items.filter(i => isPhaseUnlocked(phaseName(i), unlocked, phaseLock));
+}
+
 async function fetchTemplate() {
   const snap = await db.doc('settings/reportTemplate').get();
   return snap.exists ? (snap.data().items || []) : [];

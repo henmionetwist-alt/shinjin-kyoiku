@@ -298,6 +298,9 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
 .phase-row .stamps { margin: 6px 0 0; }
 .phase-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .phase-row.current .phase-head b { color: var(--primary); }
+.phase-row.locked { opacity: .6; cursor: default; }
+.chip.locked { opacity: .6; border-style: dashed; }
+.chip.locked.active { opacity: 1; background: #9aa39f; border-color: #9aa39f; }
 .phase-title { font-size: 17px; font-weight: 700; margin: 18px 4px 2px; padding-bottom: 4px; border-bottom: 2px solid var(--primary); }
 .phase-title:first-child { margin-top: 4px; }
 .phase-title + .section-title { margin-top: 8px; }

@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-admin.json">
 <link rel="apple-touch-icon" href="icons/admin-180.png">
 <link rel="icon" href="icons/admin-192.png">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body class="admin">
 
@@ -110,6 +110,11 @@
         <button class="btn btn-primary btn-block" id="tpl-save">チェック項目を保存</button>
       </div>
       <div class="card">
+        <h3>段階の許可制</h3>
+        <label class="check"><input type="checkbox" id="phase-lock"><span>段階（1週目など）は責任者が許可するまで社員に表示しない</span></label>
+        <p class="muted small" style="margin-top:8px">オンにすると、社員詳細画面に「段階の許可」欄が出て、社員ごとに段階を開放できます。次の段階が許可できる状態になると社員一覧に表示されます</p>
+      </div>
+      <div class="card">
         <h3>責任者アカウント <span id="admin-count" class="muted small"></span></h3>
         <div id="admin-list"></div>
         <button class="btn btn-ghost btn-block" id="btn-add-admin">＋ 責任者を追加</button>
@@ -135,8 +140,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=6"></script>
-<script src="js/common.js?v=6"></script>
-<script src="js/admin.js?v=6"></script>
+<script src="js/firebase-config.js?v=7"></script>
+<script src="js/common.js?v=7"></script>
+<script src="js/admin.js?v=7"></script>
 </body>
 </html>

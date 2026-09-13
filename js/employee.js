@@ -1,7 +1,9 @@
 /* ===== 社員側 ===== */
 
 let me = null;
-let items = [], done = {}, approvals = {}, template = [], myReports = [];
+let items = [], done = {}, approvals = {}, unlocked = {}, template = [], myReports = [];
+let appSettings = { phaseLock: false };
+const visibleItems = () => unlockedItems(items, unlocked, appSettings.phaseLock);
 let trainingFilter = 'all';
 let typeFilter = 'all';
 let selectedPhase = null;
@@ -95,16 +97,19 @@ function showBlocked(msg, adminLink) {
 }
 
 async function loadAll() {
-  const [it, prog, appr, tpl, reps] = await Promise.all([
+  const [it, prog, appr, tpl, reps, app] = await Promise.all([
     fetchItems(true),
     db.doc('progress/' + me.uid).get(),
     db.doc('approvals/' + me.uid).get(),
     fetchTemplate(),
     db.collection('reports').where('uid', '==', me.uid).get(),
+    fetchAppSettings(),
   ]);
   items = it;
   done = prog.exists ? (prog.data().done || {}) : {};
   approvals = appr.exists ? (appr.data().items || {}) : {};
+  unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
+  appSettings = app;
   template = tpl;
   setReports(reps);
   markLoaded();
@@ -125,23 +130,31 @@ function renderAll() {
 /* ---- ホーム ---- */
 function renderHome() {
   $('#home-greet').textContent = `${me.name} さん`;
-  const s = progressSummary(items, done, approvals);
+  const vis = visibleItems();
+  const s = progressSummary(vis, done, approvals);
   const pct = s.total ? Math.round(s.approved / s.total * 100) : 0;
   $('#home-approved').textContent = s.approved;
   $('#home-total').textContent = s.total;
   $('#home-bar').style.width = pct + '%';
   const phases = groupByPhase(items);
-  const cur = currentPhase(items, done, approvals);
+  const cur = currentPhase(vis, done, approvals);
   $('#home-phases').innerHTML = phases.map(p => {
+    const open = isPhaseUnlocked(p.name, unlocked, appSettings.phaseLock);
+    if (!open) {
+      return `<div class="phase-row locked" data-phase="${esc(p.name)}">
+        <div class="phase-head"><b>🔒 ${esc(p.name)}</b><span class="muted small">責任者の許可待ち（${p.items.length} 項目）</span></div>
+      </div>`;
+    }
     const ps = progressSummary(p.items, done, approvals);
     return `<div class="phase-row ${p.name === cur ? 'current' : ''}" data-phase="${esc(p.name)}">
       <div class="phase-head"><b>${esc(p.name)}</b><span class="muted small">${ps.approved} / ${ps.total}${ps.pending ? `（確認待ち ${ps.pending}）` : ''}</span></div>
       ${stampGrid(p.items, done, approvals)}
     </div>`;
   }).join('');
-  const next = items.find(i => statusOf(i.id, done, approvals) === 'none');
+  const next = vis.find(i => statusOf(i.id, done, approvals) === 'none');
   let msg;
-  if (!s.total) msg = '教育項目はまだ登録されていません';
+  if (!items.length) msg = '教育項目はまだ登録されていません';
+  else if (!s.total) msg = '責任者が段階を許可すると、ここに項目が表示されます';
   else if (next) msg = `次の項目：${next.title}` + (s.pending ? `（確認待ち ${s.pending} 件）` : '');
   else if (s.pending) msg = `すべて履修済みです。責任者の確認待ちが ${s.pending} 件あります`;
   else msg = 'すべての項目が承認されました';
@@ -159,21 +172,32 @@ function renderHome() {
 /* ---- 教育項目 ---- */
 function renderTraining() {
   const wrap = $('#training-list');
-  const phases = groupByPhase(items);
-  if (selectedPhase !== '*' && !phases.some(p => p.name === selectedPhase)) selectedPhase = currentPhase(items, done, approvals);
-  $('#phase-chips').innerHTML = phases.length > 1
+  const vis = visibleItems();
+  const allPhases = groupByPhase(items);
+  const phases = groupByPhase(vis);
+  const isOpen = name => isPhaseUnlocked(name, unlocked, appSettings.phaseLock);
+  if (selectedPhase !== '*' && !allPhases.some(p => p.name === selectedPhase)) {
+    selectedPhase = currentPhase(vis, done, approvals);
+    if (!allPhases.some(p => p.name === selectedPhase)) selectedPhase = allPhases.length ? allPhases[0].name : '*';
+  }
+  $('#phase-chips').innerHTML = allPhases.length > 1
     ? `<button class="chip ${selectedPhase === '*' ? 'active' : ''}" data-phase="*">すべて</button>` +
-      phases.map(p => `<button class="chip ${p.name === selectedPhase ? 'active' : ''}" data-phase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
+      allPhases.map(p => `<button class="chip ${p.name === selectedPhase ? 'active' : ''} ${isOpen(p.name) ? '' : 'locked'}" data-phase="${esc(p.name)}">${isOpen(p.name) ? '' : '🔒 '}${esc(p.name)}</button>`).join('')
     : '';
+  if (selectedPhase !== '*' && !isOpen(selectedPhase)) {
+    renderTypeSeg($('#type-seg'), [], typeFilter);
+    wrap.innerHTML = `<p class="empty">🔒 「${esc(selectedPhase)}」はまだ責任者の許可待ちです<br><span class="small">許可されると、ここに項目が表示されます</span></p>`;
+    return;
+  }
   const phase = phases.find(p => p.name === selectedPhase);
-  const base = (selectedPhase !== '*' && phase) ? phase.items : items;
+  const base = (selectedPhase !== '*' && phase) ? phase.items : vis;
   renderTypeSeg($('#type-seg'), base, typeFilter);
   const matchType = i => typeFilter === 'all' || (i.type || 'check') === typeFilter;
   const list = base.filter(i => matchType(i)
     && (trainingFilter === 'all' || statusOf(i.id, done, approvals) === trainingFilter));
   if (!list.length) {
-    let msg = items.length ? '該当する項目はありません' : '教育項目はまだ登録されていません';
-    if (items.length && typeFilter !== 'all' && selectedPhase !== '*') {
+    let msg = items.length ? (vis.length ? '該当する項目はありません' : '責任者が段階を許可すると、ここに項目が表示されます') : '教育項目はまだ登録されていません';
+    if (vis.length && typeFilter !== 'all' && selectedPhase !== '*') {
       const others = phases.filter(p => p.name !== selectedPhase && p.items.some(matchType));
       if (others.length) {
         msg += `<br><span class="small">${TYPE_LABELS[typeFilter]}は別の段階にあります：` +
@@ -183,7 +207,7 @@ function renderTraining() {
     wrap.innerHTML = `<p class="empty">${msg}</p>`;
     return;
   }
-  const showPhaseTitles = selectedPhase === '*' && phases.length > 1;
+  const showPhaseTitles = selectedPhase === '*' && allPhases.length > 1;
   wrap.innerHTML = groupByPhase(list).map(p =>
     `${showPhaseTitles ? `<h3 class="phase-title">${esc(p.name)}</h3>` : ''}` +
     p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(renderItem).join('')}`).join('')

@@ -2,7 +2,8 @@
 
 let me = null;
 let employees = [], items = [], template = [], admins = [], reports = [];
-const progressMap = {}, approvalsMap = {};
+const progressMap = {}, approvalsMap = {}, unlockedMap = {};
+let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
 let currentEmp = null, empNotes = [], empReports = [];
 let tplDraft = [];
@@ -54,6 +55,22 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-add-admin').addEventListener('click', openAddAdmin);
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
+  $('#phase-lock').addEventListener('change', async e => {
+    const on = e.target.checked;
+    if (on && !confirm('段階の許可制をオンにします。\n許可していない段階は社員に表示されなくなります。\nいま進行中の段階と最初の段階は、全員分を自動で許可します。よろしいですか？')) { e.target.checked = false; return; }
+    e.target.disabled = true;
+    try {
+      if (on) await autoUnlockAll();
+      await db.doc('settings/app').set({ phaseLock: on, updatedAt: FV.serverTimestamp() }, { merge: true });
+      appSettings.phaseLock = on;
+      renderEmployees();
+      if (currentEmp) renderEmpDetail();
+      toast(on ? '段階の許可制をオンにしました' : '段階の許可制をオフにしました', 'ok');
+    } catch (err) {
+      toast(authErrorMessage(err), 'err');
+      e.target.checked = !on;
+    } finally { e.target.disabled = false; }
+  });
   bindRefresh(refreshAll);
 
   auth.onAuthStateChanged(onAuth);
@@ -105,13 +122,15 @@ function showBlocked(msg) {
 
 /* ---- データ読み込み ---- */
 async function loadAll() {
-  const [empSnap, it, tpl, admSnap, repSnap] = await Promise.all([
+  const [empSnap, it, tpl, admSnap, repSnap, app] = await Promise.all([
     db.collection('employees').get(),
     fetchItems(false),
     fetchTemplate(),
     db.collection('admins').get(),
     db.collection('reports').orderBy('createdAt', 'desc').limit(150).get(),
+    fetchAppSettings(),
   ]);
+  appSettings = app;
   employees = empSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   items = it;
@@ -132,6 +151,7 @@ async function loadProgress() {
     const p = results[i * 2], a = results[i * 2 + 1];
     progressMap[e.id] = p.exists ? (p.data().done || {}) : {};
     approvalsMap[e.id] = a.exists ? (a.data().items || {}) : {};
+    unlockedMap[e.id] = a.exists ? (a.data().unlocked || {}) : {};
   });
 }
 
@@ -147,7 +167,50 @@ function renderAll() {
   renderItems();
   renderTemplate();
   renderAdmins();
+  renderPhaseLockSetting();
   $('#my-name-disp').textContent = me.name;
+}
+
+/* ---- 段階の許可 ---- */
+function phaseListFor() { return groupByPhase(pubItems()); }
+function canUnlockNext(uid) {
+  if (!appSettings.phaseLock) return null;
+  const phases = phaseListFor();
+  const locked = phases.filter(p => !unlockedMap[uid] || !unlockedMap[uid][p.name]);
+  if (!locked.length) return null;
+  const open = phases.filter(p => unlockedMap[uid] && unlockedMap[uid][p.name]);
+  const allDone = open.every(p => p.items.every(i => statusOf(i.id, progressMap[uid], approvalsMap[uid]) === 'approved'));
+  return { next: locked[0].name, ready: open.length === 0 || allDone };
+}
+async function setPhaseUnlocked(uid, name, on) {
+  if (on) {
+    await db.doc('approvals/' + uid).set({ unlocked: { [name]: true } }, { merge: true });
+  } else {
+    await db.doc('approvals/' + uid).update(new firebase.firestore.FieldPath('unlocked', name), FV.delete())
+      .catch(err => { if (err && err.code === 'not-found') return; throw err; });
+  }
+  unlockedMap[uid] = { ...(unlockedMap[uid] || {}) };
+  if (on) unlockedMap[uid][name] = true; else delete unlockedMap[uid][name];
+}
+/* 許可制をオンにするとき、進行中の段階と最初の段階を自動で許可する */
+async function autoUnlockAll() {
+  const phases = phaseListFor();
+  if (!phases.length) return;
+  const batch = db.batch();
+  employees.forEach(e => {
+    const map = { ...(unlockedMap[e.id] || {}) };
+    phases.forEach((p, k) => {
+      const active = p.items.some(i => statusOf(i.id, progressMap[e.id], approvalsMap[e.id]) !== 'none');
+      if (k === 0 || active) map[p.name] = true;
+    });
+    unlockedMap[e.id] = map;
+    batch.set(db.doc('approvals/' + e.id), { unlocked: map }, { merge: true });
+  });
+  await batch.commit();
+}
+function renderPhaseLockSetting() {
+  const cb = $('#phase-lock');
+  if (cb) cb.checked = !!appSettings.phaseLock;
 }
 
 /* ================= 確認待ち ================= */
@@ -244,6 +307,7 @@ function renderEmployees() {
       <div class="card-head"><b>${esc(e.name)}</b>
         ${e.active === false ? '<span class="badge badge-none">停止中</span>' : ''}
         ${s.pending ? `<span class="badge badge-pending">確認待ち ${s.pending}</span>` : ''}
+        ${(() => { const n = canUnlockNext(e.id); return n && n.ready ? `<span class="badge badge-approved">「${esc(n.next)}」を許可できます</span>` : ''; })()}
       </div>
       <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>
       <div class="emp-meta"><span>承認 ${s.approved}/${s.total}（${pct}%）</span><span>最終日報 ${last ? fmtYmd(last.date) : 'なし'}</span></div>
@@ -344,7 +408,8 @@ function renderEmpDetail() {
   const phases = groupByPhase(pub);
   const itemsHtml = phases.map(p => {
     const ps = progressSummary(p.items, done, appr);
-    return `${phases.length > 1 ? `<h3 class="phase-title">${esc(p.name)} <span class="muted small">${ps.approved} / ${ps.total}</span></h3>` : ''}` +
+    const lockMark = appSettings.phaseLock && !(unlockedMap[e.id] || {})[p.name] ? '🔒 ' : '';
+    return `${phases.length > 1 ? `<h3 class="phase-title">${lockMark}${esc(p.name)} <span class="muted small">${ps.approved} / ${ps.total}</span></h3>` : ''}` +
       p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(i => {
     const st = statusOf(i.id, done, appr);
     let action = '';
@@ -380,6 +445,19 @@ function renderEmpDetail() {
       <button class="btn btn-primary btn-block" data-act="add-note">メモを追加</button>
     </div>
 
+    ${appSettings.phaseLock ? `<div class="card">
+      <h3>段階の許可 <span class="muted small">オンにした段階だけ社員に表示されます</span></h3>
+      ${phases.length ? phases.map(p => {
+        const on = !!(unlockedMap[e.id] || {})[p.name];
+        const ps = progressSummary(p.items, done, appr);
+        return `<div class="row">
+          <div class="row-main">${on ? '' : '🔒 '}${esc(p.name)}<div class="muted small">${ps.approved} / ${ps.total} 承認${ps.pending ? `・確認待ち ${ps.pending}` : ''}</div></div>
+          <button class="btn ${on ? 'btn-ghost' : 'btn-primary'} btn-sm" data-unlock="${esc(p.name)}" data-on="${on ? '0' : '1'}">${on ? '許可を取り消す' : '許可する'}</button>
+        </div>`;
+      }).join('') : '<p class="muted small">公開中の項目がありません</p>'}
+      ${(() => { const n = canUnlockNext(e.id); return n ? `<button class="btn btn-primary btn-block" data-unlock="${esc(n.next)}" data-on="1">次の段階「${esc(n.next)}」を許可する</button>` : ''; })()}
+    </div>` : ''}
+
     <div class="card">
       <h3>教育項目 <span class="muted small">承認 ${s.approved}/${s.total}・確認待ち ${s.pending}</span></h3>
       ${stampGrid(pub, done, appr)}
@@ -403,6 +481,18 @@ async function onEmpDetailClick(ev) {
   if (unBtn) { await doUnapprove(e.id, unBtn.dataset.unapprove, unBtn); return; }
   const confBtn = t.closest('[data-confirm]');
   if (confBtn) { await toggleConfirm(confBtn.dataset.confirm, confBtn); return; }
+  const unlockBtn = t.closest('[data-unlock]');
+  if (unlockBtn) {
+    const on = unlockBtn.dataset.on === '1';
+    if (!on && !confirm(`「${unlockBtn.dataset.unlock}」の許可を取り消しますか？（社員側で見えなくなります。履修・承認の記録は残ります）`)) return;
+    setBusy(unlockBtn, true, '…');
+    try {
+      await setPhaseUnlocked(e.id, unlockBtn.dataset.unlock, on);
+      renderEmpDetail(); renderEmployees();
+      toast(on ? `「${unlockBtn.dataset.unlock}」を許可しました` : '許可を取り消しました', 'ok');
+    } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(unlockBtn, false); }
+    return;
+  }
   const delNote = t.closest('[data-del-note]');
   if (delNote) {
     const entry = (window.__notesSorted || [])[Number(delNote.dataset.delNote)];

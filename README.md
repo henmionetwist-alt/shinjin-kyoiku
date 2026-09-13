@@ -38,6 +38,12 @@ icons/              アイコン
 「1週目」「座学系」などの見出し行を段階・カテゴリとして自動で読み取ります（TRUE/FALSE のチェック欄は無視）。
 手書きの場合は `# 1週目` `## 座学系` の見出しと `題名｜説明｜URL` の行で書けます。
 
+## 段階の許可制
+
+責任者画面 → 設定 → 「段階の許可制」をオンにすると、責任者が許可した段階だけが社員に表示されます。
+許可は社員詳細画面の「段階の許可」欄で段階ごとにオン／オフ（`approvals/{uid}.unlocked` に保存）。
+オンにした時点で、各社員の進行中の段階と最初の段階は自動で許可されます。
+
 ## ファイルを更新したのに画面が変わらないとき
 
 ブラウザが古いファイルを記憶していることがあります。`index.html` / `admin.html` の中の `?v=5` の数字を1つ増やして保存すると、次に開いたときに必ず新しい CSS / JS が読み込まれます（更新用 ZIP には毎回この番号を上げたものが入っています）。
@@ -56,7 +62,8 @@ icons/              アイコン
 | `employees/{uid}` | 社員（name, email, active） |
 | `items/{id}` | 教育項目（title, description, type, videoUrl, phase＝段階, group＝カテゴリ, order, published） |
 | `progress/{uid}` | 社員が「履修済み」にした項目（done: {itemId: 時刻}） |
-| `approvals/{uid}` | 責任者の承認（items: {itemId: {at, by}}） |
+| `approvals/{uid}` | 責任者の承認（items: {itemId: {at, by}}）と段階の許可（unlocked: {段階名: true}） |
 | `reports/{id}` | 日報（uid, name, date, checks, text, confirmations） |
 | `notes/{uid}` | 責任者メモ（entries: [{text, author, at}]） |
 | `settings/reportTemplate` | 日報のチェック項目（items: [...]） |
+| `settings/app` | アプリ設定（phaseLock: 段階の許可制） |
