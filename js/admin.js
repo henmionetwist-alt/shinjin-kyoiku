@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-add-item').addEventListener('click', () => openItemModal(null));
   $('#btn-bulk-items').addEventListener('click', openBulkModal);
   $('#items-list').addEventListener('click', onItemsClick);
+  bindItemDrag();
   $('#items-phase-chips').addEventListener('click', e => {
     const ph = e.target.closest('[data-iphase]');
     if (ph) { itemsPhase = ph.dataset.iphase; renderItems(); }
@@ -635,14 +636,16 @@ function renderItems() {
   const shown = phases;
   wrap.innerHTML = shown.map(p => `
     ${allPhases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}<button type="button" class="rename-btn" data-rename-phase="${esc(p.name)}">名前を変更</button></h3>` : ''}
-    ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}<button type="button" class="rename-btn" data-rename-group="${esc(g.name)}" data-in-phase="${esc(p.name)}">名前を変更</button></h3>${g.items.map(i => `
-      <div class="row item-row ${i.published === false ? 'unpub' : ''}">
+    ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}<button type="button" class="rename-btn" data-rename-group="${esc(g.name)}" data-in-phase="${esc(p.name)}">名前を変更</button></h3>
+    <div class="group-list">${g.items.map(i => `
+      <div class="row item-row ${i.published === false ? 'unpub' : ''}" data-id="${i.id}">
+        <span class="drag-handle" data-drag="${i.id}" title="ドラッグで並び替え">☰</span>
         <div class="order-btns"><button type="button" data-move="${i.id}" data-dir="-1">▲</button><button type="button" data-move="${i.id}" data-dir="1">▼</button></div>
         <div class="row-main" data-edit="${i.id}">
           <span class="badge badge-type">${TYPE_LABELS[i.type] || ''}</span>${i.published === false ? ' <span class="badge badge-none">非公開</span>' : ''} ${esc(i.title)}
           ${i.description ? `<div class="muted small clamp">${esc(i.description)}</div>` : ''}
         </div>
-      </div>`).join('')}`).join('')}`).join('');
+      </div>`).join('')}</div>`).join('')}`).join('');
 }
 
 async function onItemsClick(e) {
@@ -680,25 +683,103 @@ async function renameLabel(kind, oldName, inPhase) {
   }
 }
 
-async function moveItem(id, dir) {
-  const idx = items.findIndex(i => i.id === id);
-  const j = idx + dir;
-  if (idx < 0 || j < 0 || j >= items.length) return;
-  const a = items[idx], b = items[j];
-  // order が同じ／未設定でも確実に入れ替わるように振り直す
+/* 同じ段階・カテゴリの中の項目（並び順）*/
+function siblingsOf(item) {
+  return items.filter(i => phaseName(i) === phaseName(item) && ((i.group || '').trim() || 'その他') === ((item.group || '').trim() || 'その他'))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+/* order が重複・未設定なら全体を振り直す（1回きり） */
+async function ensureUniqueOrders() {
+  const seen = new Set(); let bad = false;
+  for (const it of items) { if (typeof it.order !== 'number' || seen.has(it.order)) { bad = true; break; } seen.add(it.order); }
+  if (!bad) return;
   items.forEach((it, k) => { it.order = k; });
-  const oa = a.order, ob = b.order;
-  a.order = ob; b.order = oa;
-  items.sort((x, y) => x.order - y.order);
-  renderItems();
+  const batch = db.batch();
+  items.forEach(it => batch.update(db.doc('items/' + it.id), { order: it.order }));
+  await batch.commit();
+}
+/* ids の順に、その並びの order 値を割り当て直して保存 */
+async function applyOrder(ids) {
+  const targets = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
+  const orders = targets.map(i => i.order).sort((a, b) => a - b);
+  const changed = [];
+  targets.forEach((it, k) => { if (it.order !== orders[k]) { it.order = orders[k]; changed.push(it); } });
+  items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  if (!changed.length) return;
+  const batch = db.batch();
+  changed.forEach(it => batch.update(db.doc('items/' + it.id), { order: it.order }));
+  await batch.commit();
+}
+
+async function moveItem(id, dir) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
   try {
-    const batch = db.batch();
-    items.forEach(it => batch.update(db.doc('items/' + it.id), { order: it.order }));
-    await batch.commit();
+    await ensureUniqueOrders();
+    const sib = siblingsOf(item);
+    const idx = sib.findIndex(i => i.id === id);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= sib.length) { toast(dir < 0 ? 'いちばん上です' : 'いちばん下です'); return; }
+    const ids = sib.map(i => i.id);
+    [ids[idx], ids[j]] = [ids[j], ids[idx]];
+    await applyOrder(ids);
+    renderItems();
   } catch (err) {
     toast(authErrorMessage(err), 'err');
     await reloadItems(); renderItems();
   }
+}
+
+/* ---- ドラッグで並び替え（同じカテゴリの中） ---- */
+let drag = null;
+function bindItemDrag() {
+  const wrap = $('#items-list');
+  wrap.addEventListener('pointerdown', e => {
+    const h = e.target.closest('[data-drag]');
+    if (!h) return;
+    const row = h.closest('.item-row');
+    const list = row && row.parentElement;
+    if (!list) return;
+    e.preventDefault();
+    try { h.setPointerCapture(e.pointerId); } catch (err) {}
+    drag = { row, list, handle: h, moved: false };
+    row.classList.add('dragging');
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!drag) return;
+    e.preventDefault();
+    const y = e.clientY;
+    const rows = Array.from(drag.list.querySelectorAll('.item-row')).filter(r => r !== drag.row);
+    let before = null;
+    for (const r of rows) {
+      const rect = r.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) { before = r; break; }
+    }
+    const cur = drag.row.nextElementSibling;
+    if (before !== cur) {
+      if (before) drag.list.insertBefore(drag.row, before); else drag.list.appendChild(drag.row);
+      drag.moved = true;
+    }
+    if (y < 90) window.scrollBy(0, -12); else if (y > window.innerHeight - 90) window.scrollBy(0, 12);
+  });
+  const end = async e => {
+    if (!drag) return;
+    const { row, list, moved } = drag;
+    drag = null;
+    row.classList.remove('dragging');
+    if (!moved) return;
+    const ids = Array.from(list.querySelectorAll('.item-row')).map(r => r.dataset.id);
+    try {
+      await ensureUniqueOrders();
+      await applyOrder(ids);
+      toast('並び順を保存しました', 'ok');
+    } catch (err) {
+      toast(authErrorMessage(err), 'err');
+      await reloadItems(); renderItems();
+    }
+  };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
 }
 
 /* 入力欄の下に、登録済みの値をタップで選べるボタンを出す */
