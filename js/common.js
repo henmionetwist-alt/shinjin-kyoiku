@@ -187,6 +187,22 @@ function renderTypeSeg(el, list, active) {
     .map(([t, label]) => `<button data-type="${t}" class="${t === active ? 'active' : ''}">${label}<small>${count(t)}</small></button>`).join('');
 }
 
+/* 「最新の状態に更新」共通：ボタン表示と更新時刻 */
+let lastLoadedAt = 0;
+function markLoaded() {
+  lastLoadedAt = Date.now();
+  const el = $('#updated-at');
+  if (el) el.textContent = `最終更新 ${fmtDateTime(lastLoadedAt)}`;
+}
+function bindRefresh(refreshFn) {
+  const btn = $('#btn-refresh');
+  if (btn) btn.addEventListener('click', () => refreshFn(btn));
+  // アプリを開き直したとき（別アプリから戻ったとき等）は自動で更新
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && lastLoadedAt && Date.now() - lastLoadedAt > 60 * 1000) refreshFn(btn);
+  });
+}
+
 /* ---- モーダル ---- */
 function openModal(html) {
   closeModal();

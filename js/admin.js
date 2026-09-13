@@ -54,9 +54,27 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-add-admin').addEventListener('click', openAddAdmin);
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
+  bindRefresh(refreshAll);
 
   auth.onAuthStateChanged(onAuth);
 });
+
+/* 最新の状態に更新（開いている社員詳細はそのまま開き直す） */
+async function refreshAll(btn) {
+  if (!me || (btn && btn.disabled)) return;
+  setBusy(btn, true, '更新中…');
+  try {
+    const openId = currentEmp ? currentEmp.id : null;
+    await loadAll();
+    renderAll();
+    if (openId) await openEmployee(openId);
+    toast('最新の状態に更新しました', 'ok');
+  } catch (err) {
+    toast(authErrorMessage(err), 'err');
+  } finally {
+    setBusy(btn, false);
+  }
+}
 
 /* ---- 認証 ---- */
 async function onAuth(user) {
@@ -102,6 +120,7 @@ async function loadAll() {
   admins = admSnap.docs.map(d => ({ email: d.id, ...d.data() }));
   reports = repSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   await loadProgress();
+  markLoaded();
 }
 
 async function loadProgress() {

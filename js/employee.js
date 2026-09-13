@@ -40,8 +40,26 @@ document.addEventListener('DOMContentLoaded', () => {
     setTab('training');
   });
   $('#report-form').addEventListener('submit', submitReport);
+  bindRefresh(refreshAll);
   auth.onAuthStateChanged(onAuth);
 });
+
+/* 最新の状態に更新（入力中の日報は消さない） */
+async function refreshAll(btn) {
+  if (!me || (btn && btn.disabled)) return;
+  setBusy(btn, true, '更新中…');
+  const before = JSON.stringify(template);
+  try {
+    await loadAll();
+    renderHome(); renderTraining(); renderHistory();
+    if (JSON.stringify(template) !== before) renderReportForm();
+    toast('最新の状態に更新しました', 'ok');
+  } catch (err) {
+    toast(authErrorMessage(err), 'err');
+  } finally {
+    setBusy(btn, false);
+  }
+}
 
 async function onAuth(user) {
   if (!user) { me = null; showView('view-login'); return; }
@@ -89,6 +107,7 @@ async function loadAll() {
   approvals = appr.exists ? (appr.data().items || {}) : {};
   template = tpl;
   setReports(reps);
+  markLoaded();
 }
 
 function setReports(snap) {

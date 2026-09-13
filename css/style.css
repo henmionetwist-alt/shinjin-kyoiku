@@ -59,6 +59,12 @@ button { font-family: inherit; }
 .app-header .app-name { font-weight: 700; font-size: 17px; }
 .app-header .me-name { margin-left: auto; font-size: 13px; opacity: .92; }
 .badge-admin { font-size: 11px; background: rgba(255,255,255,.22); padding: 2px 8px; border-radius: 999px; }
+.refresh-btn {
+  border: 1px solid rgba(255,255,255,.55); background: rgba(255,255,255,.14); color: #fff;
+  border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.refresh-btn:disabled { opacity: .7; }
+.updated-at { font-size: 11px; color: var(--muted); text-align: right; margin: -4px 4px 8px; }
 
 main { padding: 12px 12px calc(84px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
 
