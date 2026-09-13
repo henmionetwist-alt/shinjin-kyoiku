@@ -202,6 +202,33 @@ function renderTypeSeg(el, list, active) {
     .map(([t, label]) => `<button data-type="${t}" class="${t === active ? 'active' : ''}">${label}<small>${count(t)}</small></button>`).join('');
 }
 
+/* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
+const APP_VERSION = '8';
+
+/* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
+async function checkForNewVersion(showToast) {
+  try {
+    const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.version || data.version === APP_VERSION) return false;
+    const key = 'reloadedFor_' + data.version;
+    let already = null;
+    try { already = sessionStorage.getItem(key); } catch (e) {}
+    if (already) {
+      // 直前に読み込み直したのに古いまま＝ブラウザの記憶が残っている
+      if (showToast) toast('新しいバージョンがありますが、まだ古い画面が残っています。ページを再読み込みしてください', 'err');
+      return false;
+    }
+    try { sessionStorage.setItem(key, '1'); } catch (e) {}
+    if (showToast) toast('新しいバージョンに切り替えます…', 'ok');
+    setTimeout(() => location.reload(), showToast ? 600 : 0);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 /* 「最新の状態に更新」共通：ボタン表示と更新時刻 */
 let lastLoadedAt = 0;
 function markLoaded() {

@@ -52,6 +52,7 @@ async function refreshAll(btn) {
   setBusy(btn, true, '更新中…');
   const before = JSON.stringify(template);
   try {
+    if (await checkForNewVersion(true)) return;
     await loadAll();
     renderHome(); renderTraining(); renderHistory();
     if (JSON.stringify(template) !== before) renderReportForm();
@@ -85,6 +86,7 @@ async function onAuth(user) {
     renderAll();
     setTab('home');
     showView('view-main');
+    checkForNewVersion(false);
   } catch (err) {
     showBlocked('読み込みに失敗しました：' + authErrorMessage(err));
   }

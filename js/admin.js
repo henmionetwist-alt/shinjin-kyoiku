@@ -81,6 +81,7 @@ async function refreshAll(btn) {
   if (!me || (btn && btn.disabled)) return;
   setBusy(btn, true, '更新中…');
   try {
+    if (await checkForNewVersion(true)) return;
     const openId = currentEmp ? currentEmp.id : null;
     await loadAll();
     renderAll();
@@ -110,6 +111,7 @@ async function onAuth(user) {
     renderAll();
     setTab('pending');
     showView('view-main');
+    checkForNewVersion(false);
   } catch (err) {
     showBlocked('読み込みに失敗しました：' + authErrorMessage(err));
   }
