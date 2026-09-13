@@ -995,7 +995,7 @@ function makeBulkItem(parts, type, phase, group) {
   const title = parts[0] || '';
   let description = '', videoUrl = '';
   for (const p of parts.slice(1)) {
-    if (/^https?:\/\//i.test(p) && !videoUrl) videoUrl = p;
+    if (/^https?:\/\/\S+$/i.test(p) && !videoUrl) videoUrl = p;
     else description = description ? description + '\n' + p : p;
   }
   let t = type;
@@ -1025,7 +1025,7 @@ function parseBulk(text, type, defaults = {}) {
     return out;
   }
 
-  const rows = lines.map(l => l.split('\t').map(c => c.trim()).map(c => CHECK_CELL.test(c) ? '' : c));
+  const rows = parseTsvRows(text).map(r => r.map(c => c.trim()).map(c => CHECK_CELL.test(c) ? '' : c));
   const firstIdx = rows.map(r => r.findIndex(c => c)).filter(i => i >= 0);
   if (!firstIdx.length) return out;
   // 題名の列 = 一番多く使われている「行の最初の文字がある列」
@@ -1053,10 +1053,37 @@ function parseBulk(text, type, defaults = {}) {
     }
     if (groupCol >= 0 && r[groupCol]) group = r[groupCol];
     const title = r[titleCol];
-    if (!title) continue;
+    if (!title) {
+      // 題名が空で右側に文だけある行 → 直前の項目の説明の続き
+      const rest = r.slice(titleCol + 1).filter(Boolean);
+      if (rest.length && out.length) {
+        const prev = out[out.length - 1];
+        prev.description = (prev.description ? prev.description + '\n' : '') + rest.join('\n');
+        if (prev.type === 'check' && type === 'auto') prev.type = 'text';
+      }
+      continue;
+    }
     out.push(makeBulkItem([title, ...r.slice(titleCol + 1)], type, phase, group));
   }
   return out;
+}
+
+/* タブ区切りを行×セルに分解。"…" で囲まれたセル（改行入り）にも対応 */
+function parseTsvRows(text) {
+  const rows = []; let row = [], cell = '', inQ = false, quoted = false;
+  const src = text.replace(/\r/g, '');
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQ) {
+      if (ch === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += ch;
+    } else if (ch === '"' && cell === '' && !quoted) { inQ = true; quoted = true; }
+    else if (ch === '\t') { row.push(cell); cell = ''; quoted = false; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; quoted = false; }
+    else cell += ch;
+  }
+  row.push(cell); rows.push(row);
+  return rows;
 }
 
 function openBulkModal() {
