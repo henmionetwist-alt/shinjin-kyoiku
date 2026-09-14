@@ -196,6 +196,9 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
 .seg button.active { background: #fff; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .seg button small { font-weight: 400; margin-left: 2px; }
 
+.emp-subtabs { position: sticky; top: calc(46px + env(safe-area-inset-top)); z-index: 5; box-shadow: 0 2px 4px rgba(0,0,0,.05); }
+.emp-subtabs button small { background: var(--warn); color: #fff; border-radius: 999px; padding: 0 5px; font-size: 10px; margin-left: 4px; }
+
 /* ---- 登録済みの値を選ぶボタン ---- */
 .value-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
 .value-chips .chip { padding: 5px 10px; font-size: 13px; }

@@ -66,6 +66,7 @@ async function saveOperators(next) {
   renderOperatorsSetting();
 }
 let empCal = newCalState();
+let empTab = 'record';   // 社員詳細のサブタブ: record / items / practice
 
 const pubItems = () => items.filter(i => i.published !== false);
 const activeEmployees = () => employees.filter(e => e.active !== false);
@@ -586,9 +587,10 @@ function showCreated(title, name, email, pw) {
 }
 
 async function openEmployee(id) {
+  const switching = !currentEmp || currentEmp.id !== id;
   currentEmp = employees.find(e => e.id === id);
   if (!currentEmp) return;
-  empCal = newCalState();
+  if (switching) { empCal = newCalState(); empTab = 'record'; }
   $('#emp-list-view').hidden = true;
   $('#emp-detail-view').hidden = false;
   $('#emp-detail').innerHTML = '<div class="spinner"></div>';
@@ -663,6 +665,13 @@ function renderEmpDetail() {
       </div>
     </div>
 
+    <div class="seg emp-subtabs" id="emp-subtabs">
+      <button type="button" data-etab="record" class="${empTab === 'record' ? 'active' : ''}">📅 記録・日報</button>
+      <button type="button" data-etab="items" class="${empTab === 'items' ? 'active' : ''}">📚 許可・教育項目${s.pending ? `<small>${s.pending}</small>` : ''}</button>
+      <button type="button" data-etab="practice" class="${empTab === 'practice' ? 'active' : ''}">⌨️ 練習</button>
+    </div>
+
+    <div class="emp-pane" data-pane="record" ${empTab === 'record' ? '' : 'hidden'}>
     <div id="daily-card"></div>
 
     <div class="card">
@@ -675,6 +684,13 @@ function renderEmpDetail() {
       <button class="btn btn-primary btn-block" data-act="add-note">メモを追加</button>
     </div>
 
+    <div class="card">
+      <h3>日報一覧 <span class="muted small">${empReports.length} 件</span></h3>
+      <div id="emp-reports">${empReports.length ? empReports.slice(0, 30).map(r => reportCard(r)).join('') : '<p class="muted small">まだ日報はありません</p>'}</div>
+    </div>
+    </div>
+
+    <div class="emp-pane" data-pane="items" ${empTab === 'items' ? '' : 'hidden'}>
     ${appSettings.phaseLock ? `<div class="card">
       <h3>段階・カテゴリの許可 <span class="muted small">許可したものだけ社員に表示されます（説明ありは常に表示）</span></h3>
       ${phases.length ? '<div class="muted small" style="margin:6px 4px 0">チェックの段階</div>' + phases.map(p => {
@@ -702,15 +718,13 @@ function renderEmpDetail() {
       ${stampGrid(pub, done, appr)}
       ${itemsHtml || '<p class="muted small">公開中の項目がありません</p>'}
     </div>
+    </div>
 
+    <div class="emp-pane" data-pane="practice" ${empTab === 'practice' ? '' : 'hidden'}>
     <div class="card">
       <h3>⌨️ 練習の記録</h3>
       ${practiceRecordHtml(e.id)}
     </div>
-
-    <div class="card">
-      <h3>日報 <span class="muted small">${empReports.length} 件</span></h3>
-      <div id="emp-reports">${empReports.length ? empReports.slice(0, 30).map(r => reportCard(r)).join('') : '<p class="muted small">まだ日報はありません</p>'}</div>
     </div>`;
   window.__notesSorted = notes;
   renderDailyCard();
@@ -820,6 +834,14 @@ async function onEmpDetailClick(ev) {
       renderEmpDetail(); renderEmployees();
       toast(on ? `「${unlockBtn.dataset.unlock}」を許可しました` : '許可を取り消しました', 'ok');
     } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(unlockBtn, false); }
+    return;
+  }
+  const etab = t.closest('[data-etab]');
+  if (etab) {
+    empTab = etab.dataset.etab;
+    $$('#emp-subtabs [data-etab]').forEach(b => b.classList.toggle('active', b.dataset.etab === empTab));
+    $$('#emp-detail .emp-pane').forEach(p => { p.hidden = p.dataset.pane !== empTab; });
+    window.scrollTo(0, 0);
     return;
   }
   const calDay = t.closest('[data-cal-day]');
