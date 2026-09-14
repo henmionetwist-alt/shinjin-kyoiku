@@ -12,11 +12,24 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/style.css?v=23">
+<link rel="stylesheet" href="css/style.css?v=24">
 </head>
 <body>
 
 <div id="view-loading" class="view center"><div class="spinner"></div></div>
+
+<div id="view-splash" class="view splash" hidden>
+  <div class="splash-inner">
+    <div class="splash-logo">✓</div>
+    <p class="splash-app app-name">新人教育</p>
+    <div class="splash-message">
+      <p class="splash-line">理想の「在り方」を強くイメージする。</p>
+      <p class="splash-line">日々の小さな努力を積み重ね、</p>
+      <p class="splash-line">現状の外側へと、自分をアップデートし続ける。</p>
+    </div>
+    <button type="button" id="splash-next" class="splash-next">次へ進む</button>
+  </div>
+</div>
 
 <div id="view-login" class="view" hidden>
   <div class="login-wrap">
@@ -134,10 +147,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=23"></script>
-<script src="js/common.js?v=23"></script>
-<script src="js/practice-data.js?v=23"></script>
-<script src="js/practice.js?v=23"></script>
-<script src="js/employee.js?v=23"></script>
+<script src="js/firebase-config.js?v=24"></script>
+<script src="js/common.js?v=24"></script>
+<script src="js/practice-data.js?v=24"></script>
+<script src="js/practice.js?v=24"></script>
+<script src="js/employee.js?v=24"></script>
 </body>
 </html>

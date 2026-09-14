@@ -382,6 +382,51 @@ kbd { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, C
   .modal { border-radius: 16px; max-height: 88vh; }
 }
 
+/* ---- スプラッシュ（起動画面） ---- */
+.splash {
+  position: fixed; inset: 0; z-index: 30;
+  background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 55%, #14503a 100%);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+  cursor: pointer; text-align: center;
+}
+.splash-inner { max-width: 520px; width: 100%; }
+.splash-logo {
+  width: 64px; height: 64px; border-radius: 18px; margin: 0 auto 10px;
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35);
+  font-size: 32px; line-height: 64px; font-weight: 700;
+  opacity: 0;
+}
+.splash-app { font-size: 14px; letter-spacing: .22em; opacity: 0; margin-bottom: 40px; color: rgba(255,255,255,.85); }
+.splash-message { margin-bottom: 44px; }
+.splash-line {
+  font-size: 19px; line-height: 2; font-weight: 500; margin: 0 0 6px;
+  opacity: 0; letter-spacing: .04em; text-wrap: balance;
+}
+.splash-next {
+  border: 1px solid rgba(255,255,255,.55); background: rgba(255,255,255,.1); color: #fff;
+  border-radius: 999px; padding: 12px 30px; font-size: 15px; font-family: inherit; cursor: pointer;
+  opacity: 0;
+}
+.splash-next:active { background: rgba(255,255,255,.22); }
+
+.splash.entering .splash-logo { animation: splashIn 1.6s ease .2s forwards; }
+.splash.entering .splash-app { animation: splashIn 1.6s ease .5s forwards; }
+.splash.entering .splash-line:nth-child(1) { animation: splashIn 1.8s ease 1.0s forwards; }
+.splash.entering .splash-line:nth-child(2) { animation: splashIn 1.8s ease 2.0s forwards; }
+.splash.entering .splash-line:nth-child(3) { animation: splashIn 1.8s ease 3.0s forwards; }
+.splash.entering .splash-next { animation: splashIn 1.4s ease 4.4s forwards; }
+.splash.leaving { animation: splashOut .7s ease forwards; }
+
+@keyframes splashIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes splashOut { from { opacity: 1; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .splash.entering .splash-logo, .splash.entering .splash-app,
+  .splash.entering .splash-line, .splash.entering .splash-next { animation: splashIn .01s linear forwards; }
+  .splash.leaving { animation: splashOut .01s linear forwards; }
+}
+
 /* ---- ログイン ---- */
 .login-wrap { max-width: 400px; margin: 0 auto; padding: 64px 20px 40px; text-align: center; }
 .login-logo {

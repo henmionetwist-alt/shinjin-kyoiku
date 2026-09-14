@@ -89,7 +89,7 @@ async function refreshAll(btn) {
 }
 
 async function onAuth(user) {
-  if (!user) { me = null; showView('view-login'); return; }
+  if (!user) { me = null; showLoginWithSplash(); return; }
   showView('view-loading');
   try {
     const empSnap = await db.doc('employees/' + user.uid).get();

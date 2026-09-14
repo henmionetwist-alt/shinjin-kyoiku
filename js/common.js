@@ -241,7 +241,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '23';
+const APP_VERSION = '24';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
@@ -346,6 +346,30 @@ function closeModal() {
   const m = $('#modal');
   if (m) m.remove();
   document.body.classList.remove('modal-open');
+}
+
+/* ---- スプラッシュ（起動画面） ---- */
+/* ログイン画面を出す前に一度だけ表示。タップ／ボタンでログインへ */
+let splashShown = false;
+function showLoginWithSplash() {
+  const sp = $('#view-splash');
+  if (!sp || splashShown) { showView('view-login'); return; }
+  splashShown = true;
+  showView('view-splash');
+  sp.classList.remove('leaving');
+  // 表示のたびにアニメーションを最初から
+  void sp.offsetWidth;
+  sp.classList.add('entering');
+  const go = () => {
+    if (sp.classList.contains('leaving')) return;
+    sp.classList.add('leaving');
+    const done = () => { showView('view-login'); sp.classList.remove('entering', 'leaving'); };
+    setTimeout(done, 700);
+  };
+  sp.addEventListener('click', go);
+  sp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  const btn = $('#splash-next');
+  if (btn) btn.addEventListener('click', e => { e.stopPropagation(); go(); });
 }
 
 /* ---- ログイン画面（両画面共通） ---- */

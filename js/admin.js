@@ -184,7 +184,7 @@ async function refreshAll(btn) {
 
 /* ---- 認証 ---- */
 async function onAuth(user) {
-  if (!user) { me = null; showView('view-login'); return; }
+  if (!user) { me = null; showLoginWithSplash(); return; }
   showView('view-loading');
   const email = (user.email || '').toLowerCase();
   try {
