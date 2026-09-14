@@ -61,7 +61,7 @@ icons/              アイコン
 ## ファイルを更新したのに画面が変わらないとき
 
 バージョン番号は3か所で管理しています（更新用 ZIP では毎回そろえて上げてあります）。
-- `index.html` / `admin.html` の `?v=22`
+- `index.html` / `admin.html` の `?v=23`
 - `js/common.js` の `APP_VERSION`
 - `version.json`
 
@@ -83,6 +83,6 @@ icons/              アイコン
 | `progress/{uid}` | 社員が「履修済み」にした項目（done）、項目メモ（memos）、練習の記録（practice.typing / practice.shortcuts） |
 | `approvals/{uid}` | 責任者の承認（items）、段階の許可（unlocked: {段階名: true}）、ビデオカテゴリの許可（unlockedVideo: {カテゴリ名: true}） |
 | `reports/{id}` | 日報（uid, name, date, checks, did＝今日やったこと, notice＝気づき, next＝次回の課題, text＝結合文, confirmations） |
-| `notes/{uid}` | 責任者のひとことメモ（entries）と、日別の指導記録（daily: {YYYY-MM-DD: {taught, concern, next, author, at}}） |
+| `notes/{uid}` | 責任者のひとことメモ（entries）と、日別の指導記録（daily: {YYYY-MM-DD: {taught, concern, next, author, at, comments: [{text, author, at}]}}） |
 | `settings/app` | アプリ設定（phaseLock: 段階の許可制） |
 | `settings/practice` | タイピング練習の言葉（words, useDefault）、合格ライン（pass）、ショートカットの重要度（tiers: {id: must/useful/rare}） |

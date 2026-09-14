@@ -353,6 +353,11 @@ kbd { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, C
 .rep-list li { margin: 2px 0; }
 .note { border-top: 1px solid var(--line); padding: 8px 0; }
 .daily-entry { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+.dl-comments { margin-top: 14px; border-top: 2px solid var(--line); padding-top: 8px; }
+.dl-comments h4 { margin: 0 0 6px; font-size: 14px; color: var(--primary-dark); }
+.comment { background: var(--primary-soft); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+.comment .note-meta { margin-bottom: 2px; }
+.comment p { white-space: pre-wrap; margin: 0; font-size: 15px; }
 .daily-entry .note-meta { margin-bottom: 6px; flex-wrap: wrap; }
 .daily-entry .note-meta .btn { margin-left: 0; }
 .daily-entry .note-meta .btn:first-of-type { margin-left: auto; }

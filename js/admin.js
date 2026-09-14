@@ -761,7 +761,7 @@ function renderDailyCard() {
   const acts = empDayActivity(e.id, dt);
   const legend = `<span><i class="dot dot-a"></i>責任者の記録</span><span><i class="dot dot-b"></i>社員の日報</span><span>✓ 履修・承認の数</span>`;
   card.innerHTML = `<div class="card">
-    <h3>責任者の日報 <span class="muted small">（この社員について・社員には表示されません）　記録のある日：${Object.keys(empDaily).length} 日</span></h3>
+    <h3>責任者の日報 <span class="muted small">（この社員について・社員には表示されません）　記録のある日：${Object.keys(empDaily).length} 日${dailyCommentCount() ? `・コメント ${dailyCommentCount()} 件` : ''}</span></h3>
     ${calendarHtml(empCal.y, empCal.m, empDayMarks(e.id), dt, legend)}
     <div class="day-panel">
       <h4>${fmtYmd(dt)} の ${esc(e.name)} さんの動き</h4>
@@ -777,12 +777,60 @@ function renderDailyCard() {
         ${x ? `<button class="btn btn-danger" data-daily-del="${dt}">この日の記録を削除</button>` : ''}
         <button class="btn btn-primary" data-act="save-daily">この日の記録を保存</button>
       </div>
+      ${dailyCommentsHtml(dt, x)}
     </div>
   </div>`;
 }
+/* 報告事項に対する上長コメント */
+function dailyCommentCount() { return Object.values(empDaily).reduce((n, x) => n + ((x.comments || []).length), 0); }
+function dailyCommentsHtml(dt, x) {
+  if (!x) return '<p class="muted small" style="margin-top:10px">この日の記録を保存すると、上長のコメントを書けます</p>';
+  const list = (x.comments || []).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+  return `<div class="dl-comments">
+    <h4>上長からのコメント <span class="muted small">（報告事項・以後の進め方について）</span></h4>
+    ${list.length ? list.map((c, i) => `<div class="comment">
+      <div class="note-meta"><b>${esc(c.author || '')}</b><span>${fmtDateTime(c.at)}</span><button class="btn btn-ghost btn-sm" data-comment-del="${i}">削除</button></div>
+      <p>${esc(c.text)}</p>
+    </div>`).join('') : '<p class="muted small">まだコメントはありません</p>'}
+    <label>コメントを追加<textarea id="dl-comment" rows="2" placeholder="指示、補足、判断など"></textarea></label>
+    <div class="btn-row"><button class="btn btn-ghost" data-act="add-comment">コメントを追加</button></div>
+  </div>`;
+}
+async function addDailyComment(btn) {
+  const dt = empCal.sel;
+  const x = empDaily[dt];
+  if (!x) { toast('先にこの日の記録を保存してください', 'err'); return; }
+  const text = $('#dl-comment').value.trim();
+  if (!text) { toast('コメントを書いてください', 'err'); return; }
+  const entry = { text, author: me.name, at: Date.now() };
+  setBusy(btn, true, '追加中…');
+  try {
+    const comments = [...(x.comments || []), entry];
+    await db.doc('notes/' + currentEmp.id).set({ daily: { [dt]: { comments } } }, { merge: true });
+    empDaily[dt] = { ...x, comments };
+    renderDailyCard();
+    toast('コメントを追加しました', 'ok');
+  } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(btn, false); }
+}
+async function deleteDailyComment(idx) {
+  const dt = empCal.sel, x = empDaily[dt];
+  if (!x) return;
+  const list = (x.comments || []).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+  const target = list[idx];
+  if (!target || !confirm('このコメントを削除しますか？')) return;
+  try {
+    const comments = (x.comments || []).filter(c => !(c.at === target.at && c.text === target.text && c.author === target.author));
+    await db.doc('notes/' + currentEmp.id).set({ daily: { [dt]: { comments } } }, { merge: true });
+    empDaily[dt] = { ...x, comments };
+    renderDailyCard();
+    toast('削除しました');
+  } catch (err) { toast(authErrorMessage(err), 'err'); }
+}
+
 async function saveDaily(btn) {
   const dt = empCal.sel;
-  const entry = { taught: $('#dl-taught').value.trim(), concern: $('#dl-concern').value.trim(), next: $('#dl-next').value.trim(), author: $('#dl-author').value.trim() || me.name, at: Date.now() };
+  const prev = empDaily[dt] || {};
+  const entry = { taught: $('#dl-taught').value.trim(), concern: $('#dl-concern').value.trim(), next: $('#dl-next').value.trim(), author: $('#dl-author').value.trim() || me.name, at: Date.now(), comments: prev.comments || [] };
   if (!entry.taught && !entry.concern && !entry.next) { toast('内容を書いてください', 'err'); return; }
   setBusy(btn, true, '保存中…');
   try {
@@ -849,6 +897,8 @@ async function onEmpDetailClick(ev) {
   if (t.closest('[data-cal-prev]')) { calNav(empCal, -1); renderDailyCard(); return; }
   if (t.closest('[data-cal-next]')) { calNav(empCal, 1); renderDailyCard(); return; }
   if (t.closest('[data-cal-today]')) { calNav(empCal, 0); renderDailyCard(); return; }
+  const cDel = t.closest('[data-comment-del]');
+  if (cDel) { await deleteDailyComment(Number(cDel.dataset.commentDel)); return; }
   const dDel = t.closest('[data-daily-del]');
   if (dDel) { await deleteDaily(dDel.dataset.dailyDel); return; }
   const delNote = t.closest('[data-del-note]');
@@ -867,6 +917,7 @@ async function onEmpDetailClick(ev) {
   const kind = act.dataset.act;
 
   if (kind === 'save-daily') { await saveDaily(act); return; }
+  if (kind === 'add-comment') { await addDailyComment(act); return; }
   if (kind === 'add-note') {
     const text = $('#note-text').value.trim();
     if (!text) { toast('メモを入力してください', 'err'); return; }
