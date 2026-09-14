@@ -428,13 +428,26 @@ kbd { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, C
   .splash.leaving { animation: splashOut .01s linear forwards; }
 }
 
-/* ---- ログイン ---- */
+/* ---- ログイン（スプラッシュと同じ背景の上にフォームを置く。形・位置は変えない） ---- */
+#view-login {
+  min-height: 100vh;
+  background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 55%, #14503a 100%);
+  color: rgba(255,255,255,.92);
+}
+body.admin #view-login {
+  background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 55%, #1a2b46 100%);
+}
 .login-wrap { max-width: 400px; margin: 0 auto; padding: 64px 20px 40px; text-align: center; }
 .login-logo {
-  width: 72px; height: 72px; border-radius: 20px; background: var(--primary); color: #fff;
+  width: 72px; height: 72px; border-radius: 20px; background: rgba(255,255,255,.14); color: #fff;
+  border: 1px solid rgba(255,255,255,.35);
   font-size: 38px; line-height: 72px; margin: 0 auto 12px; font-weight: 700;
 }
-.login-wrap .card { text-align: left; margin-top: 16px; }
+.login-wrap h1 { color: #fff; }
+.login-wrap > .muted { color: rgba(255,255,255,.78); }
+.login-wrap > .muted a { color: #fff; }
+.login-wrap .card { text-align: left; margin-top: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.22); }
+.login-wrap .card .link-sm { color: var(--muted); }
 
 /* ---- トースト ---- */
 #toast {
