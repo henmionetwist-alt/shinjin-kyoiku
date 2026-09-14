@@ -407,7 +407,8 @@ kbd { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, C
 /* ---- スプラッシュ（起動画面） ---- */
 .splash {
   position: fixed; inset: 0; z-index: 30;
-  background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 55%, #14503a 100%);
+  /* スプラッシュは社員側・責任者側とも同じ配色（紺から緑へ） */
+  background: linear-gradient(170deg, #22395e 0%, #2f4c7a 55%, #14503a 100%);
   color: #fff; display: flex; align-items: center; justify-content: center;
   padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
   cursor: pointer; text-align: center;
