@@ -1,25 +1,26 @@
 :root {
-  --bg: #eef1ee;
-  --card: #ffffff;
-  --text: #1c2321;
-  --muted: #6f7a75;
-  --line: #dde3df;
+  --bg: #eef2ec;
+  --card: #fffffd;
+  --text: #1b2a23;
+  --muted: #66766e;
+  --line: #d9e2dc;
   --primary: #1f6f50;
-  --primary-dark: #175640;
-  --primary-soft: #e2f0e9;
-  --warn: #c47a12;
-  --warn-soft: #fbecd3;
+  --primary-dark: #14503a;
+  --primary-soft: #e1efe6;
+  --warn: #c27a15;
+  --warn-soft: #f9ecd6;
   --warn-text: #8a5408;
   --ok: #2e8b57;
-  --ok-soft: #dff1e6;
+  --ok-soft: #dcefe3;
   --ok-text: #1d6b41;
-  --danger: #b23a3a;
-  --danger-soft: #f8e1e1;
+  --danger: #ad3f3b;
+  --danger-soft: #f7e2e0;
   --radius: 12px;
+  --font: "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
 }
 body.admin {
   --primary: #2f4c7a;
-  --primary-dark: #24395c;
+  --primary-dark: #22395e;
   --primary-soft: #e3e9f3;
 }
 
@@ -27,7 +28,7 @@ body.admin {
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+  font-family: var(--font);
   font-size: 16px;
   line-height: 1.55;
   color: var(--text);
@@ -52,7 +53,7 @@ button { font-family: inherit; }
 /* ---- ヘッダー ---- */
 .app-header {
   position: sticky; top: 0; z-index: 10;
-  background: var(--primary); color: #fff;
+  background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 100%); color: #fff;
   padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
   display: flex; align-items: center; gap: 8px;
 }
@@ -106,7 +107,7 @@ main { padding: 12px 12px calc(84px + env(safe-area-inset-bottom)); max-width: 6
   background: #fff; color: var(--text); text-decoration: none; line-height: 1.2;
 }
 .btn:disabled { opacity: .5; cursor: default; }
-.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary { background: linear-gradient(160deg, var(--primary) 0%, var(--primary-dark) 130%); color: #fff; }
 .btn-primary:active { background: var(--primary-dark); }
 .btn-ghost { border-color: var(--line); background: #fff; color: var(--primary); }
 .btn-danger { background: var(--danger-soft); color: var(--danger); }
@@ -152,7 +153,7 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
 
 /* ---- 進捗 ---- */
 .progress { height: 10px; background: #e4e8e5; border-radius: 5px; overflow: hidden; margin: 8px 0; }
-.progress-bar { height: 100%; background: var(--ok); border-radius: 5px; transition: width .3s; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, var(--ok) 100%); border-radius: 5px; transition: width .3s; }
 .stats, .stats-row { display: flex; gap: 8px; margin: 8px 0 12px; }
 .stats > div, .stat { flex: 1; text-align: center; background: var(--bg); border-radius: 10px; padding: 8px 4px; }
 .stats b, .stat b { display: block; font-size: 22px; line-height: 1.2; }
