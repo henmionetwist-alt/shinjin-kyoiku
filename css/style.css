@@ -304,6 +304,10 @@ kbd { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, C
 .check-list li.on { color: var(--text); }
 .report-text { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: 15px; margin-bottom: 8px; }
 .confirms { margin: 4px 0 8px; font-size: 13px; }
+.rep-sec { margin-bottom: 8px; }
+.rep-label { font-size: 12px; font-weight: 700; color: var(--primary-dark); margin-bottom: 2px; }
+.rep-list { margin: 0; padding: 6px 10px 6px 26px; background: var(--bg); border-radius: 8px; font-size: 15px; }
+.rep-list li { margin: 2px 0; }
 .note { border-top: 1px solid var(--line); padding: 8px 0; }
 .note-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .note-meta button { margin-left: auto; }

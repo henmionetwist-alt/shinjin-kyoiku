@@ -236,7 +236,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '15';
+const APP_VERSION = '16';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
@@ -276,6 +276,21 @@ function bindRefresh(refreshFn) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && lastLoadedAt && Date.now() - lastLoadedAt > 60 * 1000) refreshFn(btn);
   });
+}
+
+/* 日報の本文（3構成／旧形式どちらも表示） */
+function reportBodyHtml(r) {
+  const sec = (label, v, bullets) => {
+    if (!v) return '';
+    const body = bullets
+      ? `<ul class="rep-list">${v.split('\n').map(l => l.replace(/^[・\-*]\s*/, '').trim()).filter(Boolean).map(l => `<li>${esc(l)}</li>`).join('')}</ul>`
+      : `<p class="report-text">${esc(v)}</p>`;
+    return `<div class="rep-sec"><div class="rep-label">${label}</div>${body}</div>`;
+  };
+  if (r.did || r.notice || r.next) {
+    return sec('【今日やったこと】', r.did, true) + sec('【気づき】', r.notice) + sec('【次回の課題】', r.next);
+  }
+  return r.text ? `<p class="report-text">${esc(r.text)}</p>` : '';
 }
 
 /* ---- モーダル ---- */

@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/style.css?v=15">
+<link rel="stylesheet" href="css/style.css?v=16">
 </head>
 <body>
 
@@ -108,8 +108,14 @@
           <input id="report-date" type="date" required>
         </label>
         <div id="report-checks" class="checklist"></div>
-        <label>今日の内容・気づき
-          <textarea id="report-text" rows="5" placeholder="やったこと、わからなかったこと、明日やること など"></textarea>
+        <label>【今日やったこと】<span class="muted">（箇条書き。Enter で次の「・」が入ります）</span>
+          <textarea id="report-did" rows="5" placeholder="・開店準備&#10;・データ取り 10人&#10;・掃除ライン"></textarea>
+        </label>
+        <label>【気づき】
+          <textarea id="report-notice" rows="3" placeholder="うまくいったこと、分かったこと、疑問に思ったこと"></textarea>
+        </label>
+        <label>【次回の課題】
+          <textarea id="report-next" rows="3" placeholder="次に意識すること、できるようになりたいこと"></textarea>
         </label>
         <button id="report-submit" class="btn btn-primary btn-block" type="submit">提出する</button>
       </form>
@@ -129,10 +135,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=15"></script>
-<script src="js/common.js?v=15"></script>
-<script src="js/practice-data.js?v=15"></script>
-<script src="js/practice.js?v=15"></script>
-<script src="js/employee.js?v=15"></script>
+<script src="js/firebase-config.js?v=16"></script>
+<script src="js/common.js?v=16"></script>
+<script src="js/practice-data.js?v=16"></script>
+<script src="js/practice.js?v=16"></script>
+<script src="js/employee.js?v=16"></script>
 </body>
 </html>

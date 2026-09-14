@@ -652,7 +652,7 @@ function reportCard(r) {
   return `<div class="card" data-report="${r.id}">
     <div class="report-head"><b>${esc(r.name || '')}</b><span class="date">${fmtYmd(r.date)}</span>${checks.length ? `<span class="right">チェック ${doneN}/${checks.length}</span>` : ''}</div>
     ${checks.length ? `<ul class="check-list">${checks.map(c => `<li class="${c.done ? 'on' : ''}">${c.done ? '☑' : '☐'} ${esc(c.label)}</li>`).join('')}</ul>` : ''}
-    ${r.text ? `<p class="report-text">${esc(r.text)}</p>` : ''}
+    ${reportBodyHtml(r)}
     <div class="confirms">${conf.length ? conf.map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') : '<span class="muted">まだ誰も確認していません</span>'}</div>
     <button class="btn ${mine ? 'btn-ghost' : 'btn-primary'} btn-sm" data-confirm="${r.id}">${mine ? '確認を取り消す' : '✅ 確認した'}</button>
   </div>`;

@@ -44,6 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setTab('training');
   });
   $('#report-form').addEventListener('submit', submitReport);
+  const didEl = $('#report-did');
+  didEl.addEventListener('focus', () => { if (!didEl.value) didEl.value = '・'; });
+  didEl.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.isComposing || e.shiftKey) return;
+    e.preventDefault();
+    const pos = didEl.selectionStart;
+    didEl.value = didEl.value.slice(0, pos) + '\n・' + didEl.value.slice(didEl.selectionEnd);
+    didEl.selectionStart = didEl.selectionEnd = pos + 2;
+  });
   bindRefresh(refreshAll);
   auth.onAuthStateChanged(onAuth);
 });
@@ -348,10 +357,12 @@ function renderReportForm() {
 async function submitReport(e) {
   e.preventDefault();
   const date = $('#report-date').value;
-  const text = $('#report-text').value.trim();
+  const clean = v => v.split('\n').map(l => l.trim()).filter(l => l && l !== '・').join('\n');
+  const did = clean($('#report-did').value), notice = clean($('#report-notice').value), next = clean($('#report-next').value);
+  const text = [did && '【今日やったこと】\n' + did, notice && '【気づき】\n' + notice, next && '【次回の課題】\n' + next].filter(Boolean).join('\n');
   const checks = template.map((label, i) => ({ label, done: !!$(`#report-checks input[data-idx="${i}"]`)?.checked }));
   if (!date) { toast('日付を入れてください', 'err'); return; }
-  if (!text && !checks.some(c => c.done)) { toast('チェックを付けるか、内容を書いてください', 'err'); return; }
+  if (!did && !notice && !next && !checks.some(c => c.done)) { toast('「今日やったこと」などを書くか、チェックを付けてください', 'err'); return; }
   const existing = myReports.find(r => r.date === date);
   if (existing && !confirm(`${fmtYmd(date)} の日報はすでに提出しています。内容を書き換えますか？`)) return;
 
@@ -359,15 +370,15 @@ async function submitReport(e) {
   setBusy(btn, true, '送信中…');
   try {
     if (existing) {
-      await db.doc('reports/' + existing.id).update({ checks, text, updatedAt: FV.serverTimestamp() });
+      await db.doc('reports/' + existing.id).update({ checks, text, did, notice, next, updatedAt: FV.serverTimestamp() });
     } else {
       await db.collection('reports').add({
-        uid: me.uid, name: me.name, date, checks, text,
+        uid: me.uid, name: me.name, date, checks, text, did, notice, next,
         confirmations: {}, createdAt: FV.serverTimestamp(),
       });
     }
     toast('日報を提出しました', 'ok');
-    $('#report-text').value = '';
+    ['report-did', 'report-notice', 'report-next'].forEach(id => { $('#' + id).value = ''; });
     $$('#report-checks input').forEach(c => { c.checked = false; });
     $('#report-date').value = todayStr();
     setReports(await db.collection('reports').where('uid', '==', me.uid).get());
@@ -389,7 +400,7 @@ function renderHistory() {
     return `<div class="card">
       <div class="report-head"><span class="date">${fmtYmd(r.date)}</span>${checks.length ? `<span class="right">チェック ${doneN}/${checks.length}</span>` : ''}</div>
       ${checks.length ? `<ul class="check-list">${checks.map(c => `<li class="${c.done ? 'on' : ''}">${c.done ? '☑' : '☐'} ${esc(c.label)}</li>`).join('')}</ul>` : ''}
-      ${r.text ? `<p class="report-text">${esc(r.text)}</p>` : ''}
+      ${reportBodyHtml(r)}
       <div class="confirms">${conf.length ? conf.map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') : '<span class="muted">責任者の確認待ち</span>'}</div>
     </div>`;
   }).join('');
