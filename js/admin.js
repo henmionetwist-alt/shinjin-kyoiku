@@ -2,7 +2,7 @@
 
 let me = null;
 let employees = [], items = [], admins = [], reports = [];
-const progressMap = {}, approvalsMap = {}, unlockedMap = {}, memosMap = {}, practiceMap = {};
+const progressMap = {}, approvalsMap = {}, unlockedMap = {}, unlockedVideoMap = {}, memosMap = {}, practiceMap = {};
 let practiceSettings = { useDefault: true, custom: [] };
 let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
@@ -155,6 +155,7 @@ async function loadProgress() {
     practiceMap[e.id] = p.exists ? (p.data().practice || {}) : {};
     approvalsMap[e.id] = a.exists ? (a.data().items || {}) : {};
     unlockedMap[e.id] = a.exists ? (a.data().unlocked || {}) : {};
+    unlockedVideoMap[e.id] = a.exists ? (a.data().unlockedVideo || {}) : {};
   });
 }
 
@@ -243,7 +244,18 @@ function practiceRecordHtml(uid) {
 }
 
 /* ---- 段階の許可 ---- */
-function phaseListFor() { return groupByPhase(pubItems()); }
+function phaseListFor() { return groupByPhase(pubItems().filter(i => typeOf(i) === 'check')); }
+function videoGroupsFor() { return groupItems(pubItems().filter(i => typeOf(i) === 'video')); }
+async function setVideoUnlocked(uid, name, on) {
+  if (on) {
+    await db.doc('approvals/' + uid).set({ unlockedVideo: { [name]: true } }, { merge: true });
+  } else {
+    await db.doc('approvals/' + uid).update(new firebase.firestore.FieldPath('unlockedVideo', name), FV.delete())
+      .catch(err => { if (err && err.code === 'not-found') return; throw err; });
+  }
+  unlockedVideoMap[uid] = { ...(unlockedVideoMap[uid] || {}) };
+  if (on) unlockedVideoMap[uid][name] = true; else delete unlockedVideoMap[uid][name];
+}
 function canUnlockNext(uid) {
   if (!appSettings.phaseLock) return null;
   const phases = phaseListFor();
@@ -265,17 +277,16 @@ async function setPhaseUnlocked(uid, name, on) {
 }
 /* 許可制をオンにするとき、進行中の段階と最初の段階を自動で許可する */
 async function autoUnlockAll() {
-  const phases = phaseListFor();
-  if (!phases.length) return;
+  const phases = phaseListFor(), vgroups = videoGroupsFor();
+  if (!phases.length && !vgroups.length) return;
   const batch = db.batch();
   employees.forEach(e => {
-    const map = { ...(unlockedMap[e.id] || {}) };
-    phases.forEach((p, k) => {
-      const active = p.items.some(i => statusOf(i.id, progressMap[e.id], approvalsMap[e.id]) !== 'none');
-      if (k === 0 || active) map[p.name] = true;
-    });
-    unlockedMap[e.id] = map;
-    batch.set(db.doc('approvals/' + e.id), { unlocked: map }, { merge: true });
+    const map = { ...(unlockedMap[e.id] || {}) }, vmap = { ...(unlockedVideoMap[e.id] || {}) };
+    const active = list => list.some(i => statusOf(i.id, progressMap[e.id], approvalsMap[e.id]) !== 'none');
+    phases.forEach((p, k) => { if (k === 0 || active(p.items)) map[p.name] = true; });
+    vgroups.forEach((g, k) => { if (k === 0 || active(g.items)) vmap[g.name] = true; });
+    unlockedMap[e.id] = map; unlockedVideoMap[e.id] = vmap;
+    batch.set(db.doc('approvals/' + e.id), { unlocked: map, unlockedVideo: vmap }, { merge: true });
   });
   await batch.commit();
 }
@@ -485,12 +496,11 @@ function renderEmpDetail() {
   const s = progressSummary(pub, done, appr);
   const notes = [...empNotes].sort((a, b) => (b.at || 0) - (a.at || 0));
 
-  const phases = groupByPhase(pub);
-  const itemsHtml = phases.map(p => {
-    const ps = progressSummary(p.items, done, appr);
-    const lockMark = appSettings.phaseLock && !(unlockedMap[e.id] || {})[p.name] ? '🔒 ' : '';
-    return `${phases.length > 1 ? `<h3 class="phase-title">${lockMark}${esc(p.name)} <span class="muted small">${ps.approved} / ${ps.total}</span></h3>` : ''}` +
-      p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(i => {
+  const checks = pub.filter(i => typeOf(i) === 'check'), texts = pub.filter(i => typeOf(i) === 'text'), videos = pub.filter(i => typeOf(i) === 'video');
+  const phases = groupByPhase(checks);
+  const vgroups = groupItems(videos);
+  const lock = appSettings.phaseLock;
+  const itemRow = i => {
     const st = statusOf(i.id, done, appr);
     let action = '';
     if (st === 'pending') action = `<button class="btn btn-primary btn-sm" data-approve="${i.id}">✅ 承認</button>`;
@@ -502,7 +512,18 @@ function renderEmpDetail() {
       <div class="row-main"><span class="badge badge-${st}">${STATUS_LABELS[st]}</span> ${esc(i.title)}${sub ? `<div class="muted small">${sub}</div>` : ''}${memoView(e.id, i.id)}</div>
       ${action}
     </div>`;
-  }).join('')}`).join('');
+  };
+  const sumLabel = list => { const ps = progressSummary(list, done, appr); return `<span class="muted small">${ps.approved} / ${ps.total}</span>`; };
+  let itemsHtml = '';
+  if (checks.length) itemsHtml += `<h3 class="phase-title">【チェック】 ${sumLabel(checks)}</h3>` + phases.map(p => {
+    const lockMark = lock && !(unlockedMap[e.id] || {})[p.name] ? '🔒 ' : '';
+    return `${phases.length > 1 || p.name !== '全般' ? `<h3 class="section-title">${lockMark}${esc(p.name)} ${sumLabel(p.items)}</h3>` : ''}` +
+      p.groups.map(g => `<div class="muted small" style="margin:6px 4px 0">${esc(g.name)}</div>${g.items.map(itemRow).join('')}`).join('');
+  }).join('');
+  if (texts.length) itemsHtml += `<h3 class="phase-title">【説明あり】 ${sumLabel(texts)}</h3>` + texts.map(itemRow).join('');
+  if (videos.length) itemsHtml += `<h3 class="phase-title">【ビデオ】 ${sumLabel(videos)}</h3>` + vgroups.map(g => {
+    const lockMark = lock && !(unlockedVideoMap[e.id] || {})[g.name] ? '🔒 ' : '';
+    return `<h3 class="section-title">${lockMark}${esc(g.name)} ${sumLabel(g.items)}</h3>${g.items.map(itemRow).join('')}`;
   }).join('');
 
   $('#emp-detail').innerHTML = `
@@ -528,15 +549,24 @@ function renderEmpDetail() {
     </div>
 
     ${appSettings.phaseLock ? `<div class="card">
-      <h3>段階の許可 <span class="muted small">オンにした段階だけ社員に表示されます</span></h3>
-      ${phases.length ? phases.map(p => {
+      <h3>段階・カテゴリの許可 <span class="muted small">許可したものだけ社員に表示されます（説明ありは常に表示）</span></h3>
+      ${phases.length ? '<div class="muted small" style="margin:6px 4px 0">チェックの段階</div>' + phases.map(p => {
         const on = !!(unlockedMap[e.id] || {})[p.name];
         const ps = progressSummary(p.items, done, appr);
         return `<div class="row">
           <div class="row-main">${on ? '' : '🔒 '}${esc(p.name)}<div class="muted small">${ps.approved} / ${ps.total} 承認${ps.pending ? `・確認待ち ${ps.pending}` : ''}</div></div>
           <button class="btn ${on ? 'btn-ghost' : 'btn-primary'} btn-sm" data-unlock="${esc(p.name)}" data-on="${on ? '0' : '1'}">${on ? '許可を取り消す' : '許可する'}</button>
         </div>`;
-      }).join('') : '<p class="muted small">公開中の項目がありません</p>'}
+      }).join('') : ''}
+      ${vgroups.length ? '<div class="muted small" style="margin:10px 4px 0">ビデオのカテゴリ</div>' + vgroups.map(g => {
+        const on = !!(unlockedVideoMap[e.id] || {})[g.name];
+        const ps = progressSummary(g.items, done, appr);
+        return `<div class="row">
+          <div class="row-main">${on ? '' : '🔒 '}${esc(g.name)}<div class="muted small">${ps.approved} / ${ps.total} 承認${ps.pending ? `・確認待ち ${ps.pending}` : ''}</div></div>
+          <button class="btn ${on ? 'btn-ghost' : 'btn-primary'} btn-sm" data-unlock-video="${esc(g.name)}" data-on="${on ? '0' : '1'}">${on ? '許可を取り消す' : '許可する'}</button>
+        </div>`;
+      }).join('') : ''}
+      ${!phases.length && !vgroups.length ? '<p class="muted small">公開中の項目がありません</p>' : ''}
       ${(() => { const n = canUnlockNext(e.id); return n ? `<button class="btn btn-primary btn-block" data-unlock="${esc(n.next)}" data-on="1">次の段階「${esc(n.next)}」を許可する</button>` : ''; })()}
     </div>` : ''}
 
@@ -641,6 +671,18 @@ async function onEmpDetailClick(ev) {
   if (unBtn) { await doUnapprove(e.id, unBtn.dataset.unapprove, unBtn); return; }
   const confBtn = t.closest('[data-confirm]');
   if (confBtn) { await toggleConfirm(confBtn.dataset.confirm, confBtn); return; }
+  const unlockV = t.closest('[data-unlock-video]');
+  if (unlockV) {
+    const on = unlockV.dataset.on === '1';
+    if (!on && !confirm(`ビデオ「${unlockV.dataset.unlockVideo}」の許可を取り消しますか？`)) return;
+    setBusy(unlockV, true, '…');
+    try {
+      await setVideoUnlocked(e.id, unlockV.dataset.unlockVideo, on);
+      renderEmpDetail(); renderEmployees();
+      toast(on ? `「${unlockV.dataset.unlockVideo}」を許可しました` : '許可を取り消しました', 'ok');
+    } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(unlockV, false); }
+    return;
+  }
   const unlockBtn = t.closest('[data-unlock]');
   if (unlockBtn) {
     const on = unlockBtn.dataset.on === '1';
@@ -777,47 +819,53 @@ async function toggleConfirm(id, btn) {
 
 /* ================= 教育項目 ================= */
 let itemsPhase = '*';
-let itemsType = 'all';
+let itemsType = 'check';
 
 function renderItems() {
   const wrap = $('#items-list');
-  if (!items.length) {
+  renderTypeSeg($('#type-seg'), items, itemsType);
+  const ofType = items.filter(i => typeOf(i) === itemsType);
+  if (!ofType.length) {
     $('#items-phase-chips').innerHTML = '';
-    renderTypeSeg($('#type-seg'), [], itemsType);
-    wrap.innerHTML = '<p class="empty">項目はまだありません。「まとめ登録」で一気に登録できます</p>';
+    wrap.innerHTML = `<p class="empty">${TYPE_LABELS[itemsType]}の項目はまだありません。「項目を追加」か「まとめ登録」で登録できます</p>`;
     return;
   }
-  const allPhases = groupByPhase(items);
-  if (itemsPhase !== '*' && !allPhases.some(p => p.name === itemsPhase)) itemsPhase = '*';
-  $('#items-phase-chips').innerHTML = allPhases.length > 1
-    ? `<button class="chip ${itemsPhase === '*' ? 'active' : ''}" data-iphase="*">すべて</button>` +
-      allPhases.map(p => `<button class="chip ${p.name === itemsPhase ? 'active' : ''}" data-iphase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
-    : '';
-  const inPhase = itemsPhase === '*' ? items : items.filter(i => phaseName(i) === itemsPhase);
-  renderTypeSeg($('#type-seg'), inPhase, itemsType);
-  const filtered = inPhase.filter(i => itemsType === 'all' || (i.type || 'check') === itemsType);
-  if (!filtered.length) { wrap.innerHTML = '<p class="empty">該当する項目はありません</p>'; return; }
-  const phases = groupByPhase(filtered);
-  const shown = phases;
-  wrap.innerHTML = shown.map(p => `
-    ${allPhases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}<button type="button" class="rename-btn" data-rename-phase="${esc(p.name)}">名前を変更</button></h3>` : ''}
-    ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}<button type="button" class="rename-btn" data-rename-group="${esc(g.name)}" data-in-phase="${esc(p.name)}">名前を変更</button></h3>
-    <div class="group-list">${g.items.map(i => `
+  const rowHtml = i => `
       <div class="row item-row ${i.published === false ? 'unpub' : ''}" data-id="${i.id}">
         <span class="drag-handle" data-drag="${i.id}" title="ドラッグで並び替え">☰</span>
         <div class="order-btns"><button type="button" data-move="${i.id}" data-dir="-1">▲</button><button type="button" data-move="${i.id}" data-dir="1">▼</button></div>
         <div class="row-main" data-edit="${i.id}">
-          <span class="badge badge-type">${TYPE_LABELS[i.type] || ''}</span>${i.published === false ? ' <span class="badge badge-none">非公開</span>' : ''}${i.autoBy ? ` <span class="badge badge-approved">🏅 ${i.autoBy === 'typing' ? 'タイピング' : 'ショートカット'}合格で自動</span>` : ''} ${esc(i.title)}
+          ${i.published === false ? '<span class="badge badge-none">非公開</span> ' : ''}${i.autoBy ? `<span class="badge badge-approved">🏅 ${i.autoBy === 'typing' ? 'タイピング' : 'ショートカット'}合格で自動</span> ` : ''}${esc(i.title)}
           ${i.description ? `<div class="muted small clamp">${esc(i.description)}</div>` : ''}
         </div>
-      </div>`).join('')}</div>`).join('')}`).join('');
+      </div>`;
+  if (itemsType === 'check') {
+    const allPhases = groupByPhase(ofType);
+    if (itemsPhase !== '*' && !allPhases.some(p => p.name === itemsPhase)) itemsPhase = '*';
+    $('#items-phase-chips').innerHTML = allPhases.length > 1
+      ? `<button class="chip ${itemsPhase === '*' ? 'active' : ''}" data-iphase="*">すべて</button>` +
+        allPhases.map(p => `<button class="chip ${p.name === itemsPhase ? 'active' : ''}" data-iphase="${esc(p.name)}">${esc(p.name)}</button>`).join('')
+      : '';
+    const shown = itemsPhase === '*' ? allPhases : allPhases.filter(p => p.name === itemsPhase);
+    wrap.innerHTML = shown.map(p => `
+      ${allPhases.length > 1 && itemsPhase === '*' ? `<h3 class="phase-title">${esc(p.name)}<button type="button" class="rename-btn" data-rename-phase="${esc(p.name)}">名前を変更</button></h3>` : ''}
+      ${p.groups.map(g => `<h3 class="section-title">${esc(g.name)}<button type="button" class="rename-btn" data-rename-group="${esc(g.name)}" data-in-phase="${esc(p.name)}">名前を変更</button></h3>
+      <div class="group-list">${g.items.map(rowHtml).join('')}</div>`).join('')}`).join('');
+  } else if (itemsType === 'video') {
+    $('#items-phase-chips').innerHTML = '';
+    wrap.innerHTML = groupItems(ofType).map(g => `<h3 class="section-title">${esc(g.name)}<button type="button" class="rename-btn" data-rename-group="${esc(g.name)}">名前を変更</button></h3>
+      <div class="group-list">${g.items.map(rowHtml).join('')}</div>`).join('');
+  } else {
+    $('#items-phase-chips').innerHTML = '';
+    wrap.innerHTML = `<div class="group-list">${ofType.map(rowHtml).join('')}</div>`;
+  }
 }
 
 async function onItemsClick(e) {
   const rp = e.target.closest('[data-rename-phase]');
   if (rp) { await renameLabel('phase', rp.dataset.renamePhase, null); return; }
   const rg = e.target.closest('[data-rename-group]');
-  if (rg) { await renameLabel('group', rg.dataset.renameGroup, rg.dataset.inPhase); return; }
+  if (rg) { await renameLabel('group', rg.dataset.renameGroup, rg.dataset.inPhase ?? null); return; }
   const mv = e.target.closest('[data-move]');
   if (mv) { await moveItem(mv.dataset.move, Number(mv.dataset.dir)); return; }
   const ed = e.target.closest('[data-edit]');
@@ -827,9 +875,9 @@ async function onItemsClick(e) {
 /* 段階／カテゴリの名前をまとめて変更（同じ名前にすれば別枠になっていたものが1つにまとまる） */
 async function renameLabel(kind, oldName, inPhase) {
   const label = kind === 'phase' ? '段階' : 'カテゴリ';
-  const targets = items.filter(i => kind === 'phase'
+  const targets = items.filter(i => typeOf(i) === itemsType && (kind === 'phase'
     ? phaseName(i) === oldName
-    : (((i.group || '').trim() || 'その他') === oldName && (inPhase == null || phaseName(i) === inPhase)));
+    : (groupName(i) === oldName && (inPhase == null || phaseName(i) === inPhase))));
   if (!targets.length) return;
   const input = prompt(`${label}「${oldName}」の新しい名前（${targets.length} 件をまとめて変更します）`, oldName === 'その他' || oldName === '全般' ? '' : oldName);
   if (input == null) return;
@@ -850,7 +898,10 @@ async function renameLabel(kind, oldName, inPhase) {
 
 /* 同じ段階・カテゴリの中の項目（並び順）*/
 function siblingsOf(item) {
-  return items.filter(i => phaseName(i) === phaseName(item) && ((i.group || '').trim() || 'その他') === ((item.group || '').trim() || 'その他'))
+  const t = typeOf(item);
+  return items.filter(i => typeOf(i) === t
+      && (t !== 'check' || phaseName(i) === phaseName(item))
+      && (t === 'text' || groupName(i) === groupName(item)))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 /* order が重複・未設定なら全体を振り直す（1回きり） */
@@ -965,37 +1016,41 @@ function bindValueChips(root) {
     });
   });
 }
-function existingPhases() { return [...new Set(items.map(i => (i.phase || '').trim()).filter(Boolean))]; }
-function existingGroups() { return [...new Set(items.map(i => (i.group || '').trim()).filter(Boolean))]; }
+function existingPhases() { return [...new Set(items.filter(i => typeOf(i) === 'check').map(i => (i.phase || '').trim()).filter(Boolean))]; }
+function existingGroups(type) { return [...new Set(items.filter(i => typeOf(i) === (type || 'check')).map(i => (i.group || '').trim()).filter(Boolean))]; }
 
 function phaseDatalist(id) {
   const phases = [...new Set(items.map(i => (i.phase || '').trim()).filter(Boolean))];
   return `<datalist id="${id}">${phases.map(p => `<option value="${esc(p)}">`).join('')}</datalist>`;
 }
 
-function groupDatalist(id) {
-  const groups = [...new Set(items.map(i => (i.group || '').trim()).filter(Boolean))];
+function groupDatalist(id, type) {
+  const groups = existingGroups(type);
   return `<datalist id="${id}">${groups.map(g => `<option value="${esc(g)}">`).join('')}</datalist>`;
 }
 
 function openItemModal(item) {
   const isNew = !item;
-  const it = item || { type: 'check', phase: itemsPhase === '*' ? '' : itemsPhase, group: '', title: '', description: '', videoUrl: '', published: true };
+  const it = item || { type: itemsType, phase: itemsType === 'check' && itemsPhase !== '*' ? itemsPhase : '', group: '', title: '', description: '', videoUrl: '', published: true };
   openModal(`<h3>${isNew ? '項目を追加' : '項目を編集'}</h3>
     <form id="item-form">
       <label>種類
         <select id="it-type">${['check', 'text', 'video'].map(t => `<option value="${t}" ${it.type === t ? 'selected' : ''}>${TYPE_LABELS[t]}</option>`).join('')}</select>
       </label>
-      <label>段階（任意）
+      <div id="it-phase-wrap">
+      <label>段階（任意・チェックのみ）
         <input id="it-phase" list="it-phase-list" value="${esc(it.phase || '')}" placeholder="例：1週目" autocomplete="off">
         ${phaseDatalist('it-phase-list')}
       </label>
       ${valueChips('it-phase', existingPhases())}
+      </div>
+      <div id="it-group-wrap">
       <label>カテゴリ（任意）
         <input id="it-group" list="it-group-list" value="${esc(it.group || '')}" placeholder="例：座学系 / 実践編" autocomplete="off">
-        ${groupDatalist('it-group-list')}
+        ${groupDatalist('it-group-list', it.type)}
       </label>
-      ${valueChips('it-group', existingGroups())}
+      ${valueChips('it-group', existingGroups(it.type))}
+      </div>
       <label>題名<input id="it-title" value="${esc(it.title)}" required></label>
       <label>説明（任意）<textarea id="it-desc" rows="5">${esc(it.description || '')}</textarea></label>
       <label id="it-video-wrap" ${it.type === 'video' ? '' : 'hidden'}>ビデオのURL
@@ -1016,7 +1071,14 @@ function openItemModal(item) {
         <button type="submit" class="btn btn-primary" id="it-save">保存</button>
       </div>
     </form>`);
-  $('#it-type').addEventListener('change', e => { $('#it-video-wrap').hidden = e.target.value !== 'video'; });
+  const syncTypeFields = () => {
+    const t = $('#it-type').value;
+    $('#it-video-wrap').hidden = t !== 'video';
+    $('#it-phase-wrap').hidden = t !== 'check';
+    $('#it-group-wrap').hidden = t === 'text';
+  };
+  $('#it-type').addEventListener('change', syncTypeFields);
+  syncTypeFields();
   bindValueChips($('#modal'));
   $('#it-cancel').addEventListener('click', closeModal);
   if (!isNew) $('#it-delete').addEventListener('click', async () => {
@@ -1031,10 +1093,11 @@ function openItemModal(item) {
   });
   $('#item-form').addEventListener('submit', async e => {
     e.preventDefault();
+    const t = $('#it-type').value;
     const data = {
-      type: $('#it-type').value,
-      phase: $('#it-phase').value.trim(),
-      group: $('#it-group').value.trim(),
+      type: t,
+      phase: t === 'check' ? $('#it-phase').value.trim() : '',
+      group: t === 'text' ? '' : $('#it-group').value.trim(),
       title: $('#it-title').value.trim(),
       description: $('#it-desc').value.trim(),
       videoUrl: $('#it-type').value === 'video' ? $('#it-video').value.trim() : '',
@@ -1077,6 +1140,8 @@ function makeBulkItem(parts, type, phase, group) {
   }
   let t = type;
   if (t === 'auto') t = videoUrl ? 'video' : (description ? 'text' : 'check');
+  if (t !== 'check') phase = '';
+  if (t === 'text') group = '';
   return { title, description, videoUrl, type: t, phase, group };
 }
 
@@ -1165,26 +1230,30 @@ function parseTsvRows(text) {
 
 function openBulkModal() {
   openModal(`<h3>まとめ登録</h3>
-    <div class="hint">スプレッドシートの表をコピーしてそのまま貼り付けできます（チェック欄の TRUE/FALSE は無視。「1週目」「座学系」などの見出し行は段階・カテゴリとして自動で認識）。<br>手書きの場合は1行に1項目「題名｜説明」、ビデオは「題名｜説明｜URL」。「# 1週目」「## 座学系」と書くと、そこから下がその段階・カテゴリになります</div>
+    <div class="hint">スプレッドシートの表をコピーしてそのまま貼り付けできます（チェック欄の TRUE/FALSE は無視。「1週目」「座学系」などの見出し行は段階・カテゴリとして自動で認識）。<br>手書きの場合は1行に1項目「題名｜説明」、ビデオは「題名｜説明｜URL」。「# 1週目」「## 座学系」と書くと、そこから下がその段階・カテゴリになります。<br>チェック＝段階・カテゴリあり／説明あり＝どちらも無し／ビデオ＝カテゴリのみ</div>
     <form id="bulk-form">
       <label>種類
         <select id="bk-type">
+          <option value="check" ${itemsType === 'check' ? 'selected' : ''}>チェック</option>
+          <option value="text" ${itemsType === 'text' ? 'selected' : ''}>説明あり</option>
+          <option value="video" ${itemsType === 'video' ? 'selected' : ''}>ビデオ</option>
           <option value="auto">自動（URLあり→ビデオ／説明あり→説明あり／それ以外→チェック）</option>
-          <option value="check">すべてチェック</option>
-          <option value="text">すべて説明あり</option>
-          <option value="video">すべてビデオ</option>
         </select>
       </label>
+      <div id="bk-phase-wrap">
       <label>段階（貼り付けた中に段階の見出しが無いときに使います）
         <input id="bk-phase" list="bk-phase-list" placeholder="例：1週目" autocomplete="off">
         ${phaseDatalist('bk-phase-list')}
       </label>
       ${valueChips('bk-phase', existingPhases())}
+      </div>
+      <div id="bk-group-wrap">
       <label>カテゴリ（貼り付けた中にカテゴリの見出しが無いときに使います）
         <input id="bk-group" list="bk-group-list" placeholder="例：座学系" autocomplete="off">
-        ${groupDatalist('bk-group-list')}
+        ${groupDatalist('bk-group-list', itemsType)}
       </label>
-      ${valueChips('bk-group', existingGroups())}
+      ${valueChips('bk-group', existingGroups(itemsType))}
+      </div>
       <label>項目
         <textarea id="bk-text" rows="10" placeholder="出勤時の挨拶｜元気よく「おはようございます」&#10;タイムカードの押し方&#10;接客マナー動画｜視聴後に責任者へ報告｜https://..."></textarea>
       </label>
@@ -1203,8 +1272,14 @@ function openBulkModal() {
     $('#bk-preview').innerHTML = `${rows.length} 件を登録します（チェック ${rows.filter(r => r.type === 'check').length}・説明あり ${rows.filter(r => r.type === 'text').length}・ビデオ ${rows.filter(r => r.type === 'video').length}）<br>${byPhase.join('<br>')}`;
   };
   ['bk-text', 'bk-phase', 'bk-group'].forEach(id => $('#' + id).addEventListener('input', preview));
+  const syncBulkFields = () => {
+    const t = $('#bk-type').value;
+    $('#bk-phase-wrap').hidden = !(t === 'check' || t === 'auto');
+    $('#bk-group-wrap').hidden = t === 'text';
+  };
+  $('#bk-type').addEventListener('change', () => { syncBulkFields(); preview(); });
+  syncBulkFields();
   bindValueChips($('#modal'));
-  $('#bk-type').addEventListener('change', preview);
   $('#bk-cancel').addEventListener('click', closeModal);
   $('#bulk-form').addEventListener('submit', async e => {
     e.preventDefault();

@@ -40,16 +40,22 @@ icons/              アイコン
 「1週目」「座学系」などの見出し行を段階・カテゴリとして自動で読み取ります（TRUE/FALSE のチェック欄は無視）。
 手書きの場合は `# 1週目` `## 座学系` の見出しと `題名｜説明｜URL` の行で書けます。
 
-## 段階の許可制
+## 項目の3つの大分類
 
-責任者画面 → 設定 → 「段階の許可制」をオンにすると、責任者が許可した段階だけが社員に表示されます。
-許可は社員詳細画面の「段階の許可」欄で段階ごとにオン／オフ（`approvals/{uid}.unlocked` に保存）。
+- チェック：段階（任意）・カテゴリ（任意）あり
+- 説明あり：段階・カテゴリなし（常に表示）
+- ビデオ：カテゴリ（任意）のみ
+
+## 段階・カテゴリの許可制
+
+責任者画面 → 設定 → 「段階・カテゴリの許可制」をオンにすると、責任者が許可したチェックの段階・ビデオのカテゴリだけが社員に表示されます（説明ありは常に表示）。
+許可は社員詳細画面の「段階・カテゴリの許可」欄でオン／オフ（`approvals/{uid}.unlocked` / `unlockedVideo` に保存）。
 オンにした時点で、各社員の進行中の段階と最初の段階は自動で許可されます。
 
 ## ファイルを更新したのに画面が変わらないとき
 
 バージョン番号は3か所で管理しています（更新用 ZIP では毎回そろえて上げてあります）。
-- `index.html` / `admin.html` の `?v=18`
+- `index.html` / `admin.html` の `?v=19`
 - `js/common.js` の `APP_VERSION`
 - `version.json`
 
@@ -67,9 +73,9 @@ icons/              アイコン
 |---|---|
 | `admins/{メール}` | 責任者。ドキュメントがあれば責任者扱い |
 | `employees/{uid}` | 社員（name, email, active） |
-| `items/{id}` | 教育項目（title, description, type, videoUrl, phase＝段階, group＝カテゴリ, order, published, autoBy＝練習合格で自動履修） |
+| `items/{id}` | 教育項目（title, description, type＝check/text/video, videoUrl, phase＝段階（チェックのみ）, group＝カテゴリ（チェック・ビデオ）, order, published, autoBy＝練習合格で自動履修） |
 | `progress/{uid}` | 社員が「履修済み」にした項目（done）、項目メモ（memos）、練習の記録（practice.typing / practice.shortcuts） |
-| `approvals/{uid}` | 責任者の承認（items: {itemId: {at, by}}）と段階の許可（unlocked: {段階名: true}） |
+| `approvals/{uid}` | 責任者の承認（items）、段階の許可（unlocked: {段階名: true}）、ビデオカテゴリの許可（unlockedVideo: {カテゴリ名: true}） |
 | `reports/{id}` | 日報（uid, name, date, checks, did＝今日やったこと, notice＝気づき, next＝次回の課題, text＝結合文, confirmations） |
 | `notes/{uid}` | 責任者のひとことメモ（entries）と、日別の指導記録（daily: {YYYY-MM-DD: {taught, concern, next, author, at}}） |
 | `settings/app` | アプリ設定（phaseLock: 段階の許可制） |

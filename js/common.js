@@ -120,6 +120,9 @@ async function fetchItems(publishedOnly) {
 }
 
 function phaseName(it) { return (it.phase || '').trim() || '全般'; }
+function groupName(it) { return (it.group || '').trim() || 'その他'; }
+function typeOf(it) { return it.type || 'check'; }
+const TYPE_ORDER = ['check', 'text', 'video'];
 
 /* 段階 → カテゴリ の2段でまとめる */
 function groupByPhase(items) {
@@ -155,14 +158,21 @@ async function fetchAppSettings() {
   const snap = await db.doc('settings/app').get();
   return Object.assign({ phaseLock: false }, snap.exists ? snap.data() : {});
 }
-/* 段階が社員に開放されているか */
+/* 段階（チェック）／カテゴリ（ビデオ）が社員に開放されているか */
 function isPhaseUnlocked(name, unlocked, phaseLock) {
   return !phaseLock || !!(unlocked && unlocked[name]);
 }
-/* 開放済みの段階の項目だけに絞る */
-function unlockedItems(items, unlocked, phaseLock) {
+function isItemUnlocked(it, unlocked, unlockedVideo, phaseLock) {
+  if (!phaseLock) return true;
+  const t = typeOf(it);
+  if (t === 'check') return !!(unlocked && unlocked[phaseName(it)]);
+  if (t === 'video') return !!(unlockedVideo && unlockedVideo[groupName(it)]);
+  return true; // 説明あり は常に見える
+}
+/* 開放済みの項目だけに絞る */
+function unlockedItems(items, unlocked, unlockedVideo, phaseLock) {
   if (!phaseLock) return items;
-  return items.filter(i => isPhaseUnlocked(phaseName(i), unlocked, phaseLock));
+  return items.filter(i => isItemUnlocked(i, unlocked, unlockedVideo, phaseLock));
 }
 
 /* タイピングの言葉リスト（settings/practice）。初期リストと責任者の追加分を合わせて返す */
@@ -222,16 +232,16 @@ function stampGrid(items, done, approvals) {
   }).join('')}</div>`;
 }
 
-/* 分類タブ（すべて／チェック／説明あり／ビデオ）に件数を付けて描画 */
+/* 大項目タブ（チェック／説明あり／ビデオ）に件数を付けて描画 */
 function renderTypeSeg(el, list, active) {
   if (!el) return;
-  const count = t => t === 'all' ? list.length : list.filter(i => (i.type || 'check') === t).length;
-  el.innerHTML = [['all', 'すべて'], ['check', 'チェック'], ['text', '説明あり'], ['video', 'ビデオ']]
+  const count = t => list.filter(i => typeOf(i) === t).length;
+  el.innerHTML = [['check', 'チェック'], ['text', '説明あり'], ['video', 'ビデオ']]
     .map(([t, label]) => `<button data-type="${t}" class="${t === active ? 'active' : ''}">${label}<small>${count(t)}</small></button>`).join('');
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '18';
+const APP_VERSION = '19';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {

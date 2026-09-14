@@ -1,15 +1,16 @@
 /* ===== 社員側 ===== */
 
 let me = null;
-let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, myReports = [];
+let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, unlockedVideo = {}, myReports = [];
 let practice = {};
 let myCal = newCalState();
 let practicePass = { typingCpm: 0, typingAcc: 0, shortcutScore: 0 };
 let appSettings = { phaseLock: false };
-const visibleItems = () => unlockedItems(items, unlocked, appSettings.phaseLock);
+const visibleItems = () => unlockedItems(items, unlocked, unlockedVideo, appSettings.phaseLock);
 let trainingFilter = 'all';
-let typeFilter = 'all';
+let typeFilter = 'check';
 let selectedPhase = null;
+let selectedVideoGroup = null;
 const openItems = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,14 +34,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#phase-chips').addEventListener('click', e => {
     const c = e.target.closest('[data-phase]');
-    if (!c) return;
-    selectedPhase = c.dataset.phase;
-    renderTraining();
+    if (c) { selectedPhase = c.dataset.phase; renderTraining(); return; }
+    const v = e.target.closest('[data-vgroup]');
+    if (v) { selectedVideoGroup = v.dataset.vgroup; renderTraining(); }
   });
   $('#home-phases').addEventListener('click', e => {
-    const row = e.target.closest('[data-phase]');
+    const row = e.target.closest('[data-goto-type]');
     if (!row) return;
-    selectedPhase = row.dataset.phase;
+    typeFilter = row.dataset.gotoType;
+    if (typeFilter === 'check') selectedPhase = row.dataset.gotoKey;
+    if (typeFilter === 'video') selectedVideoGroup = row.dataset.gotoKey;
     renderTraining();
     setTab('training');
   });
@@ -135,6 +138,7 @@ async function loadAll() {
   practicePass = pw.pass;
   approvals = appr.exists ? (appr.data().items || {}) : {};
   unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
+  unlockedVideo = appr.exists ? (appr.data().unlockedVideo || {}) : {};
   appSettings = app;
   setReports(reps);
   markLoaded();
@@ -162,21 +166,22 @@ function renderHome() {
   $('#home-approved').textContent = s.approved;
   $('#home-total').textContent = s.total;
   $('#home-bar').style.width = pct + '%';
-  const phases = groupByPhase(items);
-  const cur = currentPhase(vis, done, approvals);
-  $('#home-phases').innerHTML = phases.map(p => {
-    const open = isPhaseUnlocked(p.name, unlocked, appSettings.phaseLock);
-    if (!open) {
-      return `<div class="phase-row locked" data-phase="${esc(p.name)}">
-        <div class="phase-head"><b>🔒 ${esc(p.name)}</b><span class="muted small">責任者の許可待ち（${p.items.length} 項目）</span></div>
-      </div>`;
-    }
-    const ps = progressSummary(p.items, done, approvals);
-    return `<div class="phase-row ${p.name === cur ? 'current' : ''}" data-phase="${esc(p.name)}">
-      <div class="phase-head"><b>${esc(p.name)}</b><span class="muted small">${ps.approved} / ${ps.total}${ps.pending ? `（確認待ち ${ps.pending}）` : ''}</span></div>
-      ${stampGrid(p.items, done, approvals)}
+  const lock = appSettings.phaseLock;
+  const checks = items.filter(i => typeOf(i) === 'check'), texts = items.filter(i => typeOf(i) === 'text'), videos = items.filter(i => typeOf(i) === 'video');
+  const cur = currentPhase(checks.filter(i => isItemUnlocked(i, unlocked, unlockedVideo, lock)), done, approvals);
+  const row = (label, list, open, key, current) => {
+    if (!open) return `<div class="phase-row locked" data-goto-type="${key.type}" data-goto-key="${esc(key.name)}"><div class="phase-head"><b>🔒 ${esc(label)}</b><span class="muted small">責任者の許可待ち（${list.length} 項目）</span></div></div>`;
+    const ps = progressSummary(list, done, approvals);
+    return `<div class="phase-row ${current ? 'current' : ''}" data-goto-type="${key.type}" data-goto-key="${esc(key.name)}">
+      <div class="phase-head"><b>${esc(label)}</b><span class="muted small">${ps.approved} / ${ps.total}${ps.pending ? `（確認待ち ${ps.pending}）` : ''}</span></div>
+      ${stampGrid(list, done, approvals)}
     </div>`;
-  }).join('');
+  };
+  let html = '';
+  if (checks.length) html += `<h3 class="section-title">チェック</h3>` + groupByPhase(checks).map(p => row(p.name, p.items, isPhaseUnlocked(p.name, unlocked, lock), { type: 'check', name: p.name }, p.name === cur)).join('');
+  if (texts.length) html += `<h3 class="section-title">説明あり</h3>` + row('説明あり', texts, true, { type: 'text', name: '' }, false);
+  if (videos.length) html += `<h3 class="section-title">ビデオ</h3>` + groupItems(videos).map(g => row(g.name, g.items, !lock || !!unlockedVideo[g.name], { type: 'video', name: g.name }, false)).join('');
+  $('#home-phases').innerHTML = html;
   const next = vis.find(i => statusOf(i.id, done, approvals) === 'none');
   let msg;
   if (!items.length) msg = '教育項目はまだ登録されていません';
@@ -198,46 +203,52 @@ function renderHome() {
 /* ---- 教育項目 ---- */
 function renderTraining() {
   const wrap = $('#training-list');
-  const vis = visibleItems();
-  const allPhases = groupByPhase(items);
-  const phases = groupByPhase(vis);
-  const isOpen = name => isPhaseUnlocked(name, unlocked, appSettings.phaseLock);
-  if (selectedPhase !== '*' && !allPhases.some(p => p.name === selectedPhase)) {
-    selectedPhase = currentPhase(vis, done, approvals);
-    if (!allPhases.some(p => p.name === selectedPhase)) selectedPhase = allPhases.length ? allPhases[0].name : '*';
-  }
-  $('#phase-chips').innerHTML = allPhases.length > 1
-    ? `<button class="chip ${selectedPhase === '*' ? 'active' : ''}" data-phase="*">すべて</button>` +
-      allPhases.map(p => `<button class="chip ${p.name === selectedPhase ? 'active' : ''} ${isOpen(p.name) ? '' : 'locked'}" data-phase="${esc(p.name)}">${isOpen(p.name) ? '' : '🔒 '}${esc(p.name)}</button>`).join('')
-    : '';
-  if (selectedPhase !== '*' && !isOpen(selectedPhase)) {
-    renderTypeSeg($('#type-seg'), [], typeFilter);
-    wrap.innerHTML = `<p class="empty">🔒 「${esc(selectedPhase)}」はまだ責任者の許可待ちです<br><span class="small">許可されると、ここに項目が表示されます</span></p>`;
-    return;
-  }
-  const phase = phases.find(p => p.name === selectedPhase);
-  const base = (selectedPhase !== '*' && phase) ? phase.items : vis;
-  renderTypeSeg($('#type-seg'), base, typeFilter);
-  const matchType = i => typeFilter === 'all' || (i.type || 'check') === typeFilter;
-  const list = base.filter(i => matchType(i)
-    && (trainingFilter === 'all' || statusOf(i.id, done, approvals) === trainingFilter));
-  if (!list.length) {
-    let msg = items.length ? (vis.length ? '該当する項目はありません' : '責任者が段階を許可すると、ここに項目が表示されます') : '教育項目はまだ登録されていません';
-    if (vis.length && typeFilter !== 'all' && selectedPhase !== '*') {
-      const others = phases.filter(p => p.name !== selectedPhase && p.items.some(matchType));
-      if (others.length) {
-        msg += `<br><span class="small">${TYPE_LABELS[typeFilter]}は別の段階にあります：` +
-          others.map(p => `<button class="chip" data-phase="${esc(p.name)}">${esc(p.name)} ${p.items.filter(matchType).length}</button>`).join(' ') + '</span>';
-      }
+  const lock = appSettings.phaseLock;
+  renderTypeSeg($('#type-seg'), items, typeFilter);
+  const ofType = items.filter(i => typeOf(i) === typeFilter);
+  const matchStatus = i => trainingFilter === 'all' || statusOf(i.id, done, approvals) === trainingFilter;
+  let chips = '', base = [], lockedMsg = '';
+
+  if (typeFilter === 'check') {
+    const phases = groupByPhase(ofType);
+    const isOpen = name => isPhaseUnlocked(name, unlocked, lock);
+    if (!phases.some(p => p.name === selectedPhase)) {
+      selectedPhase = currentPhase(ofType.filter(i => isOpen(phaseName(i))), done, approvals);
+      if (!phases.some(p => p.name === selectedPhase)) selectedPhase = phases.length ? phases[0].name : '';
     }
-    wrap.innerHTML = `<p class="empty">${msg}</p>`;
+    chips = phases.length > 1 ? phases.map(p => `<button class="chip ${p.name === selectedPhase ? 'active' : ''} ${isOpen(p.name) ? '' : 'locked'}" data-phase="${esc(p.name)}">${isOpen(p.name) ? '' : '🔒 '}${esc(p.name)}</button>`).join('') : '';
+    const ph = phases.find(p => p.name === selectedPhase);
+    base = ph ? ph.items : [];
+    if (ph && !isOpen(ph.name)) lockedMsg = `🔒 「${esc(ph.name)}」はまだ責任者の許可待ちです`;
+  } else if (typeFilter === 'video') {
+    const groups = groupItems(ofType);
+    const isOpen = name => !lock || !!unlockedVideo[name];
+    if (!groups.some(g => g.name === selectedVideoGroup)) {
+      const firstOpen = groups.find(g => isOpen(g.name) && g.items.some(i => statusOf(i.id, done, approvals) !== 'approved')) || groups.find(g => isOpen(g.name)) || groups[0];
+      selectedVideoGroup = firstOpen ? firstOpen.name : '';
+    }
+    chips = groups.length > 1 ? groups.map(g => `<button class="chip ${g.name === selectedVideoGroup ? 'active' : ''} ${isOpen(g.name) ? '' : 'locked'}" data-vgroup="${esc(g.name)}">${isOpen(g.name) ? '' : '🔒 '}${esc(g.name)}</button>`).join('') : '';
+    const g = groups.find(x => x.name === selectedVideoGroup);
+    base = g ? g.items : [];
+    if (g && !isOpen(g.name)) lockedMsg = `🔒 「${esc(g.name)}」はまだ責任者の許可待ちです`;
+  } else {
+    base = ofType;
+  }
+  $('#phase-chips').innerHTML = chips;
+  if (lockedMsg) {
+    wrap.innerHTML = `<p class="empty">${lockedMsg}<br><span class="small">許可されると、ここに項目が表示されます</span></p>`;
     return;
   }
-  const showPhaseTitles = selectedPhase === '*' && allPhases.length > 1;
-  wrap.innerHTML = groupByPhase(list).map(p =>
-    `${showPhaseTitles ? `<h3 class="phase-title">${esc(p.name)}</h3>` : ''}` +
-    p.groups.map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(renderItem).join('')}`).join('')
-  ).join('');
+  const list = base.filter(matchStatus);
+  if (!list.length) {
+    wrap.innerHTML = `<p class="empty">${ofType.length ? '該当する項目はありません' : `${TYPE_LABELS[typeFilter]}の項目はまだ登録されていません`}</p>`;
+    return;
+  }
+  if (typeFilter === 'check') {
+    wrap.innerHTML = groupItems(list).map(g => `<h3 class="section-title">${esc(g.name)}</h3>${g.items.map(renderItem).join('')}`).join('');
+  } else {
+    wrap.innerHTML = list.map(renderItem).join('');
+  }
 }
 
 function renderItem(it) {
@@ -289,6 +300,8 @@ function onTrainingClick(e) {
   if (e.target.closest('a')) return;
   const phaseBtn = e.target.closest('[data-phase]');
   if (phaseBtn) { selectedPhase = phaseBtn.dataset.phase; renderTraining(); return; }
+  const vBtn = e.target.closest('[data-vgroup]');
+  if (vBtn) { selectedVideoGroup = vBtn.dataset.vgroup; renderTraining(); return; }
   const head = e.target.closest('[data-toggle]');
   if (head) {
     const item = head.closest('.item');

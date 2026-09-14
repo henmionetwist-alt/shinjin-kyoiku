@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-admin.json">
 <link rel="apple-touch-icon" href="icons/admin-180.png">
 <link rel="icon" href="icons/admin-192.png">
-<link rel="stylesheet" href="css/style.css?v=18">
+<link rel="stylesheet" href="css/style.css?v=19">
 </head>
 <body class="admin">
 
@@ -118,9 +118,9 @@
         <button class="btn btn-primary btn-block" id="pass-save">合格ラインを保存</button>
       </div>
       <div class="card">
-        <h3>段階の許可制</h3>
-        <label class="check"><input type="checkbox" id="phase-lock"><span>段階（1週目など）は責任者が許可するまで社員に表示しない</span></label>
-        <p class="muted small" style="margin-top:8px">オンにすると、社員詳細画面に「段階の許可」欄が出て、社員ごとに段階を開放できます。次の段階が許可できる状態になると社員一覧に表示されます</p>
+        <h3>段階・カテゴリの許可制</h3>
+        <label class="check"><input type="checkbox" id="phase-lock"><span>チェックの段階（1週目など）とビデオのカテゴリは、責任者が許可するまで社員に表示しない</span></label>
+        <p class="muted small" style="margin-top:8px">オンにすると、社員詳細画面に「段階・カテゴリの許可」欄が出て、社員ごとに開放できます。説明ありの項目は常に表示されます。次の段階が許可できる状態になると社員一覧に表示されます</p>
       </div>
       <div class="card">
         <h3>責任者アカウント <span id="admin-count" class="muted small"></span></h3>
@@ -148,9 +148,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=18"></script>
-<script src="js/common.js?v=18"></script>
-<script src="js/practice-data.js?v=18"></script>
-<script src="js/admin.js?v=18"></script>
+<script src="js/firebase-config.js?v=19"></script>
+<script src="js/common.js?v=19"></script>
+<script src="js/practice-data.js?v=19"></script>
+<script src="js/admin.js?v=19"></script>
 </body>
 </html>
