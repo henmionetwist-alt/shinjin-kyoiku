@@ -30,10 +30,15 @@ function fmtDateTime(v) {
   const d = toDate(v); if (!d) return '';
   return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/* 一日の変わり目（営業時間 10:00〜翌5:00 に合わせて朝8時を境にする）
+   例）9/15 深夜2時に書いた日報・履修は「9/14」として扱う */
+const DAY_START_HOUR = 8;
+function businessDate(v) {
+  const d = v ? new Date(v) : new Date();
+  const b = new Date(d.getTime() - DAY_START_HOUR * 3600 * 1000);
+  return `${b.getFullYear()}-${pad2(b.getMonth() + 1)}-${pad2(b.getDate())}`;
 }
+function todayStr() { return businessDate(); }
 const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 function fmtYmd(ymd) {
   if (!ymd) return '';
@@ -260,7 +265,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '32';
+const APP_VERSION = '33';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
@@ -320,7 +325,7 @@ function reportBodyHtml(r) {
 /* ---- カレンダー ---- */
 function ymdOf(v) {
   const d = toDate(v); if (!d) return '';
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return businessDate(d);   // 記録も朝8時を境に前日扱いにする
 }
 /* marks: { 'YYYY-MM-DD': { a: bool, b: bool, n: number } }  a=青丸 b=緑丸 n=✓件数 */
 function calendarHtml(year, month, marks, selected, legend) {
