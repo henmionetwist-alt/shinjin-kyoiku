@@ -453,9 +453,14 @@ kbd { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, C
 /* ---- ログイン（スプラッシュと同じ背景の上にフォームを置く。形・位置は変えない） ---- */
 #view-login {
   min-height: 100vh;
-  /* スプラッシュ（.splash）と同じグラデーション。責任者側も紺→緑に溶ける */
-  background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 55%, #14503a 100%);
+  /* 社員側：スプラッシュの終わりの色（深緑）を受けて、上＝青緑 → 下＝黄緑寄りの深緑へ流す。
+     同系色でも色相が動くのでグラデーションが見える */
+  background: linear-gradient(170deg, #0f4a49 0%, #17654a 50%, #245c2c 100%);
   color: rgba(255,255,255,.92);
+}
+/* 責任者側はスプラッシュと同じ紺→緑のまま */
+body.admin #view-login {
+  background: linear-gradient(170deg, #22395e 0%, #2f4c7a 55%, #14503a 100%);
 }
 .login-wrap { max-width: 400px; margin: 0 auto; padding: 64px 20px 40px; text-align: center; }
 .login-logo {
