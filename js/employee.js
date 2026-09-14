@@ -5,6 +5,7 @@ let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, unlockedVi
 let practice = {};
 let myCal = newCalState();
 let practicePass = { typingCpm: 0, typingAcc: 0, shortcutScore: 0 };
+let practiceTiers = {};
 let appSettings = { phaseLock: false };
 const visibleItems = () => unlockedItems(items, unlocked, unlockedVideo, appSettings.phaseLock);
 let trainingFilter = 'all';
@@ -136,6 +137,7 @@ async function loadAll() {
   practice = prog.exists ? (prog.data().practice || {}) : {};
   practiceWords = pw.words;
   practicePass = pw.pass;
+  practiceTiers = pw.tiers;
   approvals = appr.exists ? (appr.data().items || {}) : {};
   unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
   unlockedVideo = appr.exists ? (appr.data().unlockedVideo || {}) : {};

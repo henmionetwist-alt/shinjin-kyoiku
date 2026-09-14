@@ -61,7 +61,7 @@ icons/              アイコン
 ## ファイルを更新したのに画面が変わらないとき
 
 バージョン番号は3か所で管理しています（更新用 ZIP では毎回そろえて上げてあります）。
-- `index.html` / `admin.html` の `?v=20`
+- `index.html` / `admin.html` の `?v=21`
 - `js/common.js` の `APP_VERSION`
 - `version.json`
 
@@ -85,4 +85,4 @@ icons/              アイコン
 | `reports/{id}` | 日報（uid, name, date, checks, did＝今日やったこと, notice＝気づき, next＝次回の課題, text＝結合文, confirmations） |
 | `notes/{uid}` | 責任者のひとことメモ（entries）と、日別の指導記録（daily: {YYYY-MM-DD: {taught, concern, next, author, at}}） |
 | `settings/app` | アプリ設定（phaseLock: 段階の許可制） |
-| `settings/practice` | タイピング練習の言葉（words, useDefault）と合格ライン（pass: {typingCpm, typingAcc, shortcutScore}） |
+| `settings/practice` | タイピング練習の言葉（words, useDefault）、合格ライン（pass）、ショートカットの重要度（tiers: {id: must/useful/rare}） |

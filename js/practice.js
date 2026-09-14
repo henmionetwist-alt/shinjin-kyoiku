@@ -105,8 +105,10 @@ function renderPractice() {
     </div>
     <div class="card">
       <h3>⌨️ ショートカット練習 <span class="muted small">${SHORTCUT_QUESTIONS}問</span></h3>
-      <p class="muted small">「コピー」と出たら Ctrl + C を実際に押します。2回間違えると答えが表示されます</p>
+      <p class="muted small">「コピー」と出たら Ctrl + C を実際に押します。2回間違えると答えが表示されます。<b>必須</b>のキーは毎回全部出題され、1つでもミスすると不合格です</p>
       <div class="filter-row" style="flex-wrap:wrap">${setChips}</div>
+      <label class="check"><input type="checkbox" id="sc-include-rare"><span>「ほぼ使わない」ものも混ぜる</span></label>
+      <p class="muted small" id="sc-tier-summary"></p>
       ${passBadge('shortcuts', rec)}
       <div class="stats">
         <div><b>${sb ? sb.score + '/' + sb.total : '－'}</b><span>ベスト 正解</span></div>
@@ -114,10 +116,17 @@ function renderPractice() {
         <div><b>${rec.shortcuts && rec.shortcuts.history ? rec.shortcuts.history.length : 0}</b><span>回数</span></div>
       </div>
       <div class="btn-row"><button class="btn btn-ghost" id="shortcut-learn">一覧を見て覚える</button><button class="btn btn-primary" id="shortcut-start">練習を始める</button></div>
-      ${historyList(rec.shortcuts && rec.shortcuts.history, h => `${fmtDateTime(h.at)}　${h.score}/${h.total} 正解・${h.seconds}秒${h.hints ? `・答えを見た ${h.hints} 問` : ''}・${esc(h.sets || '')}`)}
+      ${historyList(rec.shortcuts && rec.shortcuts.history, h => `${fmtDateTime(h.at)}　${h.score}/${h.total} 正解・${h.seconds}秒${h.hints ? `・答えを見た ${h.hints} 問` : ''}${h.mustMiss ? `・必須ミス ${h.mustMiss}` : ''}・${esc(h.sets || '')}`)}
     </div>`;
   $('#typing-start').addEventListener('click', startTyping);
   $('#shortcut-start').addEventListener('click', startShortcuts);
+  const tierSummary = () => {
+    const pool = shortcutPool();
+    const c = t => pool.filter(x => x.tier === t).length;
+    $('#sc-tier-summary').textContent = pool.length ? `選んだ種類の内訳：必須 ${c('must')}・便利 ${c('useful')}・ほぼ使わない ${c('rare')}` : '';
+  };
+  $$('input[name="sc-set"]').forEach(i => i.addEventListener('change', tierSummary));
+  tierSummary();
   $('#shortcut-learn').addEventListener('click', () => startLearn());
 }
 function passBadge(kind, rec) {
@@ -244,21 +253,42 @@ function shortcutMatches(e, s) {
   return s.keys.includes(k) || s.keys.includes(code) || (k === ' ' && s.keys.includes('space'));
 }
 
+/* 選んだ種類のショートカット（同じキーは1つにまとめ、重要度を付ける） */
+function shortcutPool() {
+  const setKeys = $$('input[name="sc-set"]:checked').map(i => i.value);
+  const byKey = new Map();
+  const rank = t => TIER_ORDER.indexOf(t);
+  setKeys.flatMap(k => SHORTCUT_SETS[k].items.map(it => ({ ...it, set: SHORTCUT_SETS[k].name, tier: tierOf(it.id, practiceTiers) })))
+    .forEach(it => {
+      const key = [it.ctrl ? 'c' : '', it.shift ? 's' : '', it.alt ? 'a' : '', it.show].join('|');
+      const cur = byKey.get(key);
+      // 同じキーが複数の種類にあるときは、重要度が高い方（必須＞便利＞ほぼ使わない）を採用
+      if (!cur || rank(it.tier) < rank(cur.tier)) byKey.set(key, it);
+    });
+  return [...byKey.values()];
+}
+/* 出題：必須は全部、残りを便利（＋チェック時はほぼ使わない）からランダム */
+function buildShortcutQuestions(pool, includeRare) {
+  const shuffle = a => [...a].sort(() => Math.random() - 0.5);
+  const must = shuffle(pool.filter(x => x.tier === 'must'));
+  const fillPool = shuffle(pool.filter(x => x.tier === 'useful' || (includeRare && x.tier === 'rare')));
+  const fill = fillPool.slice(0, Math.max(0, SHORTCUT_QUESTIONS - must.length));
+  return shuffle([...must, ...fill]);
+}
 function startShortcuts() {
   stopPracticeSession();
   const setKeys = $$('input[name="sc-set"]:checked').map(i => i.value);
   if (!setKeys.length) { toast('練習する種類を1つ以上選んでください', 'err'); return; }
-  // 同じキー（Ctrl + F など）が複数の種類にある場合は1問にまとめる
-  const seen = new Set();
-  const pool = setKeys.flatMap(k => SHORTCUT_SETS[k].items.map(it => ({ ...it, set: SHORTCUT_SETS[k].name })))
-    .filter(it => { const key = [it.ctrl ? 'c' : '', it.shift ? 's' : '', it.alt ? 'a' : '', it.show].join('|'); if (seen.has(key)) return false; seen.add(key); return true; });
-  const qs = [...pool].sort(() => Math.random() - 0.5).slice(0, SHORTCUT_QUESTIONS);
-  const state = { kind: 'shortcuts', qs, idx: 0, misses: 0, qMiss: 0, correct: 0, hints: 0, hinted: false, startedAt: null, timer: null, sets: setKeys.map(k => SHORTCUT_SETS[k].name).join('・') };
+  const includeRare = !!($('#sc-include-rare') && $('#sc-include-rare').checked);
+  const qs = buildShortcutQuestions(shortcutPool(), includeRare);
+  if (!qs.length) { toast('出題できるショートカットがありません', 'err'); return; }
+  const state = { kind: 'shortcuts', qs, idx: 0, misses: 0, qMiss: 0, correct: 0, hints: 0, hinted: false, mustMiss: 0, mustTotal: qs.filter(q => q.tier === 'must').length, qMustFailed: false, startedAt: null, timer: null, sets: setKeys.map(k => SHORTCUT_SETS[k].name).join('・') };
   showSession(`
     <div class="card practice-card">
       <div class="practice-top"><span class="practice-time" id="sc-time">0</span><span class="muted small">秒　<span id="sc-no">1</span> / ${qs.length} 問・ミス <span id="sc-miss">0</span></span><button class="btn btn-ghost btn-sm" id="sc-quit">やめる</button></div>
       <p class="muted small" id="sc-set"></p>
       <div class="sc-label" id="sc-label"></div>
+      <p class="sc-tier" id="sc-tier"></p>
       <p class="sc-feedback" id="sc-feedback">キーを押してください（最初のキーでタイマー開始）</p>
       <div class="btn-row"><button class="btn btn-ghost btn-sm" id="sc-hint">答えを見る</button><button class="btn btn-ghost btn-sm" id="sc-skip">スキップ</button></div>
     </div>`);
@@ -266,16 +296,21 @@ function startShortcuts() {
     const q = qs[state.idx];
     $('#sc-no').textContent = state.idx + 1; $('#sc-miss').textContent = state.misses;
     $('#sc-set').textContent = q.set; $('#sc-label').textContent = q.label;
+    $('#sc-tier').innerHTML = `<span class="badge tier-${q.tier}">${TIER_LABELS[q.tier]}</span>${q.tier === 'must' ? ' <span class="muted small">ミスすると不合格</span>' : ''}`;
+  };
+  const mustFail = () => {
+    const q = qs[state.idx];
+    if (q.tier === 'must' && !state.qMustFailed) { state.qMustFailed = true; state.mustMiss++; }
   };
   const reveal = () => {
-    if (!state.hinted) { state.hinted = true; state.hints++; }
+    if (!state.hinted) { state.hinted = true; state.hints++; mustFail(); }
   };
   const advance = (ok) => {
     const prevQ = qs[state.idx];
     const wasHinted = state.hinted;
     const card = $('.practice-card');
     if (card) { card.classList.remove('flash-ok', 'flash-miss'); void card.offsetWidth; card.classList.add(ok ? 'flash-ok' : 'flash-miss'); }
-    state.idx++; state.qMiss = 0; state.hinted = false;
+    state.idx++; state.qMiss = 0; state.hinted = false; state.qMustFailed = false;
     if (state.idx >= qs.length) { finishShortcuts(state); return; }
     $('#sc-feedback').textContent = ok
       ? (wasHinted ? `${prevQ.show}：${prevQ.desc || ''}（答えを見たので正解には数えません）` : `正解！ ${prevQ.show}：${prevQ.desc || ''}`)
@@ -284,7 +319,7 @@ function startShortcuts() {
   };
   $('#sc-quit').addEventListener('click', () => { stopPracticeSession(); renderPractice(); });
   $('#sc-hint').addEventListener('click', () => { const q = qs[state.idx]; reveal(); $('#sc-feedback').textContent = `答え：${q.show}（${q.desc || ''}）※この問題は正解に数えません`; });
-  $('#sc-skip').addEventListener('click', () => { state.misses++; advance(false); });
+  $('#sc-skip').addEventListener('click', () => { state.misses++; mustFail(); advance(false); });
   state.onKey = e => {
     if (['control', 'shift', 'alt', 'meta'].includes((e.key || '').toLowerCase())) return;
     if (e.key === 'Escape') { stopPracticeSession(); renderPractice(); return; }
@@ -296,7 +331,7 @@ function startShortcuts() {
     }
     const q = qs[state.idx];
     if (shortcutMatches(e, q)) { if (!state.hinted) state.correct++; advance(true); return; }
-    state.misses++; state.qMiss++;
+    state.misses++; state.qMiss++; mustFail();
     $('#sc-miss').textContent = state.misses;
     if (state.qMiss >= 2) reveal();
     $('#sc-feedback').textContent = state.qMiss >= 2 ? `✕ 答え：${q.show}（${q.desc || ''}）※この問題は正解に数えません` : '✕ もう一度';
@@ -313,7 +348,7 @@ async function finishShortcuts(state) {
   document.removeEventListener('keydown', state.onKey, true);
   practiceSession = null;
   const seconds = state.startedAt ? Math.max(1, Math.round((Date.now() - state.startedAt) / 1000)) : 0;
-  const result = { at: Date.now(), score: state.correct, total: state.qs.length, misses: state.misses, hints: state.hints, seconds, sets: state.sets };
+  const result = { at: Date.now(), score: state.correct, total: state.qs.length, misses: state.misses, hints: state.hints, mustMiss: state.mustMiss, mustTotal: state.mustTotal, seconds, sets: state.sets };
   const prev = practiceRecords().shortcuts || {};
   const history = [...(prev.history || []), result].slice(-10);
   const better = !prev.best || result.score > prev.best.score || (result.score === prev.best.score && result.seconds < prev.best.seconds);
@@ -329,7 +364,9 @@ async function finishShortcuts(state) {
         <div><b>${result.seconds}秒</b><span>タイム</span></div>
         <div><b>${result.misses}</b><span>ミス</span></div>
         <div><b>${result.hints}</b><span>答えを見た</span></div>
+        <div><b>${result.mustMiss}/${result.mustTotal}</b><span>必須のミス</span></div>
       </div>
+      ${result.mustMiss ? '<p class="pass-line" style="color:var(--danger)">必須のショートカットをミスしたので、この回は不合格です</p>' : ''}
       <p class="muted small" id="sc-save-status">記録を保存中…</p>
       <div class="btn-row"><button class="btn btn-ghost" id="sc-back">戻る</button><button class="btn btn-primary" id="sc-again">もう一回</button></div>
     </div>`;
@@ -377,7 +414,7 @@ function startLearn(setKey) {
   if (!SHORTCUT_SETS[learnSet]) learnSet = Object.keys(SHORTCUT_SETS)[0];
   const set = SHORTCUT_SETS[learnSet];
   const chips = Object.entries(SHORTCUT_SETS).map(([k, v]) => `<button class="chip ${k === learnSet ? 'active' : ''}" data-learn-set="${k}">${v.name}</button>`).join('');
-  const rows = set.items.map(it => `<tr><td class="kbd-cell"><kbd>${esc(it.show)}</kbd></td><td><b>${esc(it.label)}</b><div class="muted small">${esc(it.desc || '')}</div></td></tr>`).join('');
+  const rows = set.items.map(it => { const t = tierOf(it.id, practiceTiers); return `<tr><td class="kbd-cell"><kbd>${esc(it.show)}</kbd><div><span class="badge tier-${t}">${TIER_LABELS[t]}</span></div></td><td><b>${esc(it.label)}</b><div class="muted small">${esc(it.desc || '')}</div></td></tr>`; }).join('');
   let sandbox = '';
   if (set.sandbox === 'text') sandbox = `
     <h3 class="section-title">試してみる（文字の練習欄）</h3>

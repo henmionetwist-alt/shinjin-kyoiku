@@ -182,7 +182,7 @@ async function fetchPracticeWords() {
   const custom = (data.words || []).map(w => ({ display: w.display || w.kana, kana: w.kana })).filter(w => w.kana);
   const base = data.useDefault === false ? [] : DEFAULT_TYPING_WORDS.map(([display, kana]) => ({ display, kana }));
   const pass = Object.assign({ typingCpm: 0, typingAcc: 0, shortcutScore: 0 }, data.pass || {});
-  return { words: [...base, ...custom], useDefault: data.useDefault !== false, custom, pass };
+  return { words: [...base, ...custom], useDefault: data.useDefault !== false, custom, pass, tiers: data.tiers || {} };
 }
 /* 合格ラインを満たした記録があるか */
 function practicePassed(kind, rec, pass) {
@@ -194,7 +194,7 @@ function practicePassed(kind, rec, pass) {
     return hist.some(h => (h.cpm || 0) >= (pass.typingCpm || 0) && (h.acc || 0) >= (pass.typingAcc || 0));
   }
   if (!pass.shortcutScore) return false;
-  return hist.some(h => (h.score || 0) >= pass.shortcutScore);
+  return hist.some(h => (h.score || 0) >= pass.shortcutScore && (h.mustMiss || 0) === 0);
 }
 function passLineText(kind, pass) {
   if (!pass) return '';
@@ -204,7 +204,7 @@ function passLineText(kind, pass) {
     if (pass.typingAcc) parts.push(`正確率 ${pass.typingAcc}%`);
     return parts.join('・');
   }
-  return pass.shortcutScore ? `${pass.shortcutScore} / ${SHORTCUT_QUESTIONS_TOTAL} 問正解` : '';
+  return pass.shortcutScore ? `${pass.shortcutScore} / ${SHORTCUT_QUESTIONS_TOTAL} 問以上正解・必須はノーミス` : '';
 }
 const SHORTCUT_QUESTIONS_TOTAL = 10;
 
@@ -241,7 +241,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '20';
+const APP_VERSION = '21';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {

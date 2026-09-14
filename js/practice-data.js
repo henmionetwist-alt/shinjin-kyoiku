@@ -144,3 +144,21 @@ const SANDBOX_TEXT = `おはようございます。今日の予定を確認し�
 午後：お客様対応、日報の記入
 分からないことは、責任者に相談してください。
 sample text for typing 2026`;
+
+/* ショートカットごとの ID（種類:キー表示）と重要度の初期値 */
+Object.entries(SHORTCUT_SETS).forEach(([k, set]) => set.items.forEach(it => { it.id = k + ':' + it.show; }));
+const TIER_LABELS = { must: '必須', useful: '便利', rare: 'ほぼ使わない' };
+const TIER_ORDER = ['must', 'useful', 'rare'];
+const DEFAULT_TIERS = {
+  'windows:Ctrl + C': 'must', 'windows:Ctrl + V': 'must', 'windows:Ctrl + X': 'must', 'windows:Ctrl + Z': 'must',
+  'windows:Ctrl + A': 'must', 'windows:Ctrl + S': 'must',
+  'windows:Ctrl + Shift + ←': 'rare', 'windows:Ctrl + Home': 'rare', 'windows:Ctrl + End': 'rare',
+  'browser:Ctrl + F': 'must', 'browser:F5': 'must', 'browser:Ctrl + L': 'must',
+  'browser:Ctrl + J': 'rare', 'browser:Ctrl + H': 'rare', 'browser:Shift + Space': 'rare', 'browser:Ctrl + 0': 'rare', 'browser:Space': 'rare',
+  'sheets:F2': 'must',
+  'sheets:Ctrl + K': 'rare', 'sheets:Ctrl + Shift + ;': 'rare', 'sheets:Ctrl + Space': 'rare', 'sheets:Shift + Space': 'rare',
+  'sheets:Ctrl + Shift + ↓': 'rare', 'sheets:Ctrl + R': 'rare', 'sheets:Ctrl + I': 'rare',
+  'ime:F7': 'must', 'ime:F10': 'must',
+  'ime:F6': 'rare', 'ime:F8': 'rare', 'ime:F9': 'rare', 'ime:Shift + End': 'rare', 'ime:Ctrl + →': 'rare',
+};
+function tierOf(id, custom) { return (custom && custom[id]) || DEFAULT_TIERS[id] || 'useful'; }

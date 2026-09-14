@@ -126,6 +126,21 @@ document.addEventListener('DOMContentLoaded', () => {
     catch (err) { toast(authErrorMessage(err), 'err'); }
   });
   $('#pw-save').addEventListener('click', savePracticeWords);
+  $('#tier-save').addEventListener('click', saveTiers);
+  $('#tier-list').addEventListener('click', e => {
+    const all = e.target.closest('[data-tier-all]');
+    if (all) {
+      e.preventDefault();
+      SHORTCUT_SETS[all.dataset.tierAll].items.forEach(it => { tierDraft[it.id] = all.dataset.tier; });
+      $$(`.tier-row`, $('#tier-list')).forEach(paintTierRow);
+      return;
+    }
+    const b = e.target.closest('.seg-tier [data-tier]');
+    if (!b) return;
+    const row = b.closest('.tier-row');
+    tierDraft[row.dataset.tierId] = b.dataset.tier;
+    paintTierRow(row);
+  });
   $('#pass-save').addEventListener('click', savePassLine);
   $('#phase-lock').addEventListener('change', async e => {
     const on = e.target.checked;
@@ -257,7 +272,38 @@ function renderAll() {
 }
 
 /* ---- 練習：言葉リストの設定 ---- */
+/* ショートカットの重要度（必須／便利／ほぼ使わない） */
+let tierDraft = {};
+function renderTierSettings() {
+  const el = $('#tier-list');
+  if (!el) return;
+  tierDraft = { ...(practiceSettings.tiers || {}) };
+  el.innerHTML = Object.entries(SHORTCUT_SETS).map(([k, set]) => `<details class="tier-set" open>
+    <summary><b>${esc(set.name)}</b> <span class="muted small">${set.items.length} 個</span>
+      <span class="tier-bulk">${TIER_ORDER.map(t => `<button type="button" class="chip" data-tier-all="${k}" data-tier="${t}">全部 ${TIER_LABELS[t]}</button>`).join('')}</span></summary>
+    ${set.items.map(it => `<div class="row tier-row" data-tier-id="${esc(it.id)}">
+      <div class="row-main"><kbd>${esc(it.show)}</kbd> ${esc(it.label)}</div>
+      <div class="seg seg-tier">${TIER_ORDER.map(t => `<button type="button" data-tier="${t}" class="${tierOf(it.id, tierDraft) === t ? 'active' : ''}">${TIER_LABELS[t]}</button>`).join('')}</div>
+    </div>`).join('')}
+  </details>`).join('');
+}
+function paintTierRow(row) {
+  const id = row.dataset.tierId, cur = tierOf(id, tierDraft);
+  $$('[data-tier]', row).forEach(b => b.classList.toggle('active', b.dataset.tier === cur));
+}
+async function saveTiers() {
+  const btn = $('#tier-save');
+  setBusy(btn, true, '保存中…');
+  try {
+    await db.doc('settings/practice').set({ tiers: tierDraft, updatedAt: FV.serverTimestamp() }, { merge: true });
+    practiceSettings.tiers = { ...tierDraft };
+    toast('重要度を保存しました', 'ok');
+  } catch (err) { toast(authErrorMessage(err), 'err'); }
+  finally { setBusy(btn, false); }
+}
+
 function renderPracticeSettings() {
+  renderTierSettings();
   const pass = practiceSettings.pass || {};
   $('#pass-cpm').value = pass.typingCpm || '';
   $('#pass-acc').value = pass.typingAcc || '';
@@ -321,7 +367,7 @@ function practiceRecordHtml(uid) {
     <div class="row"><div class="row-main"><b>タイピング</b>${passLine('typing', t)}${t.best ? `<div class="muted small">ベスト ${t.best.cpm} 打鍵/分・正確率 ${t.best.acc}%（${fmtDateTime(t.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
       ${last(t.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.cpm} 打鍵/分・${h.acc}%・${h.words} 語</div>`).join('')}</div></div>
     <div class="row"><div class="row-main"><b>ショートカット</b>${passLine('shortcuts', sc)}${sc.best ? `<div class="muted small">ベスト ${sc.best.score}/${sc.best.total} 正解・${sc.best.seconds}秒（${fmtDateTime(sc.best.at)}）</div>` : '<div class="muted small">記録なし</div>'}
-      ${last(sc.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.score}/${h.total}・${h.seconds}秒${h.hints ? `・答えを見た ${h.hints}` : ''}・${esc(h.sets || '')}</div>`).join('')}</div></div>`;
+      ${last(sc.history, 3).map(h => `<div class="muted small">${fmtDateTime(h.at)}　${h.score}/${h.total}・${h.seconds}秒${h.hints ? `・答えを見た ${h.hints}` : ''}${h.mustMiss ? `・<span style="color:var(--danger)">必須ミス ${h.mustMiss}</span>` : ''}・${esc(h.sets || '')}</div>`).join('')}</div></div>`;
 }
 
 /* ---- 段階の許可 ---- */

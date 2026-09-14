@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-admin.json">
 <link rel="apple-touch-icon" href="icons/admin-180.png">
 <link rel="icon" href="icons/admin-192.png">
-<link rel="stylesheet" href="css/style.css?v=20">
+<link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body class="admin">
 
@@ -109,6 +109,12 @@
         <button class="btn btn-primary btn-block" id="pw-save">言葉リストを保存</button>
       </div>
       <div class="card">
+        <h3>ショートカットの重要度</h3>
+        <p class="muted small">「必須」は毎回全部出題され、1つでもミスすると不合格。「便利」は残りの枠にランダムで出題。「ほぼ使わない」は社員が「混ぜる」にチェックしたときだけ出題されます</p>
+        <div id="tier-list"></div>
+        <button class="btn btn-primary btn-block" id="tier-save">重要度を保存</button>
+      </div>
+      <div class="card">
         <h3>練習の合格ライン</h3>
         <p class="muted small">達成した社員に「🏅 合格」バッジが付き、社員一覧にも表示されます。0 や空欄にすると判定しません。教育項目の編集画面で「合格で自動履修」を選ぶと、合格と同時にその項目が履修済み（確認待ち）になります</p>
         <div class="btn-row" style="margin-top:0">
@@ -155,9 +161,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=20"></script>
-<script src="js/common.js?v=20"></script>
-<script src="js/practice-data.js?v=20"></script>
-<script src="js/admin.js?v=20"></script>
+<script src="js/firebase-config.js?v=21"></script>
+<script src="js/common.js?v=21"></script>
+<script src="js/practice-data.js?v=21"></script>
+<script src="js/admin.js?v=21"></script>
 </body>
 </html>

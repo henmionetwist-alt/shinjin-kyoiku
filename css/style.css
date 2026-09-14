@@ -269,6 +269,19 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
 .day-panel .day-list li { padding: 4px 0; border-top: 1px solid var(--line); }
 .day-panel .day-list li:first-child { border-top: 0; }
 
+.tier-must { background: var(--danger-soft); color: var(--danger); }
+.tier-useful { background: var(--primary-soft); color: var(--primary-dark); }
+.tier-rare { background: #e4e8e5; color: #55605b; }
+.sc-tier { text-align: center; margin: -4px 0 8px; }
+.tier-set { margin-bottom: 10px; }
+.tier-set summary { cursor: pointer; padding: 6px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tier-bulk { display: flex; gap: 4px; margin-left: auto; }
+.tier-bulk .chip { padding: 3px 8px; font-size: 12px; }
+.tier-row .row-main { font-size: 14px; }
+.seg-tier { margin: 0; width: 220px; flex: none; }
+.seg-tier button { font-size: 12px; padding: 5px 2px; }
+.seg-tier button.active[data-tier="must"] { color: var(--danger); }
+
 /* ---- 覚える（一覧・試す欄） ---- */
 .kbd-table { width: 100%; border-collapse: collapse; }
 .kbd-table td { padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: top; font-size: 15px; }
