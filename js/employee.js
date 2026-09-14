@@ -1,7 +1,7 @@
 /* ===== 社員側 ===== */
 
 let me = null;
-let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, template = [], myReports = [];
+let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, myReports = [];
 let practice = {};
 let practicePass = { typingCpm: 0, typingAcc: 0, shortcutScore: 0 };
 let appSettings = { phaseLock: false };
@@ -61,13 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function refreshAll(btn) {
   if (!me || (btn && btn.disabled)) return;
   setBusy(btn, true, '更新中…');
-  const before = JSON.stringify(template);
   try {
     if (await checkForNewVersion(true)) return;
     await loadAll();
     renderHome(); renderTraining(); renderHistory();
     if (!practiceSession) renderPractice();
-    if (JSON.stringify(template) !== before) renderReportForm();
     toast('最新の状態に更新しました', 'ok');
   } catch (err) {
     toast(authErrorMessage(err), 'err');
@@ -111,11 +109,10 @@ function showBlocked(msg, adminLink) {
 }
 
 async function loadAll() {
-  const [it, prog, appr, tpl, reps, app, pw] = await Promise.all([
+  const [it, prog, appr, reps, app, pw] = await Promise.all([
     fetchItems(true),
     db.doc('progress/' + me.uid).get(),
     db.doc('approvals/' + me.uid).get(),
-    fetchTemplate(),
     db.collection('reports').where('uid', '==', me.uid).get(),
     fetchAppSettings(),
     fetchPracticeWords(),
@@ -129,7 +126,6 @@ async function loadAll() {
   approvals = appr.exists ? (appr.data().items || {}) : {};
   unlocked = appr.exists ? (appr.data().unlocked || {}) : {};
   appSettings = app;
-  template = tpl;
   setReports(reps);
   markLoaded();
 }
@@ -349,9 +345,6 @@ async function undoDone(id, btn) {
 function renderReportForm() {
   const dateEl = $('#report-date');
   if (!dateEl.value) dateEl.value = todayStr();
-  $('#report-checks').innerHTML = template.length
-    ? template.map((label, i) => `<label class="check"><input type="checkbox" data-idx="${i}"><span>${esc(label)}</span></label>`).join('')
-    : '<p class="hint">チェック項目はまだ設定されていません。内容だけ書いて提出できます</p>';
 }
 
 async function submitReport(e) {
@@ -360,9 +353,9 @@ async function submitReport(e) {
   const clean = v => v.split('\n').map(l => l.trim()).filter(l => l && l !== '・').join('\n');
   const did = clean($('#report-did').value), notice = clean($('#report-notice').value), next = clean($('#report-next').value);
   const text = [did && '【今日やったこと】\n' + did, notice && '【気づき】\n' + notice, next && '【次回の課題】\n' + next].filter(Boolean).join('\n');
-  const checks = template.map((label, i) => ({ label, done: !!$(`#report-checks input[data-idx="${i}"]`)?.checked }));
+  const checks = [];
   if (!date) { toast('日付を入れてください', 'err'); return; }
-  if (!did && !notice && !next && !checks.some(c => c.done)) { toast('「今日やったこと」などを書くか、チェックを付けてください', 'err'); return; }
+  if (!did && !notice && !next) { toast('「今日やったこと」などを書いてください', 'err'); return; }
   const existing = myReports.find(r => r.date === date);
   if (existing && !confirm(`${fmtYmd(date)} の日報はすでに提出しています。内容を書き換えますか？`)) return;
 
@@ -379,7 +372,6 @@ async function submitReport(e) {
     }
     toast('日報を提出しました', 'ok');
     ['report-did', 'report-notice', 'report-next'].forEach(id => { $('#' + id).value = ''; });
-    $$('#report-checks input').forEach(c => { c.checked = false; });
     $('#report-date').value = todayStr();
     setReports(await db.collection('reports').where('uid', '==', me.uid).get());
     renderHistory(); renderHome();

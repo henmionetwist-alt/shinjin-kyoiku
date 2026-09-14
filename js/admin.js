@@ -1,13 +1,12 @@
 /* ===== 責任者側 ===== */
 
 let me = null;
-let employees = [], items = [], template = [], admins = [], reports = [];
+let employees = [], items = [], admins = [], reports = [];
 const progressMap = {}, approvalsMap = {}, unlockedMap = {}, memosMap = {}, practiceMap = {};
 let practiceSettings = { useDefault: true, custom: [] };
 let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
-let currentEmp = null, empNotes = [], empReports = [];
-let tplDraft = [];
+let currentEmp = null, empNotes = [], empReports = [], empDaily = {};
 
 const pubItems = () => items.filter(i => i.published !== false);
 const activeEmployees = () => employees.filter(e => e.active !== false);
@@ -28,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#btn-emp-back').addEventListener('click', closeEmployee);
   $('#emp-detail').addEventListener('click', onEmpDetailClick);
+  $('#emp-detail').addEventListener('change', e => { if (e.target.id === 'dl-date') loadDailyForm(e.target.value); });
 
   $$('[data-rfilter]').forEach(c => c.addEventListener('click', () => {
     reportFilter = c.dataset.rfilter;
@@ -50,10 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (b) { itemsType = b.dataset.type; renderItems(); }
   });
 
-  $('#tpl-list').addEventListener('click', onTplClick);
-  $('#tpl-add').addEventListener('click', addTplRow);
-  $('#tpl-new').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addTplRow(); } });
-  $('#tpl-save').addEventListener('click', saveTemplate);
   $('#btn-add-admin').addEventListener('click', openAddAdmin);
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
@@ -128,10 +124,9 @@ function showBlocked(msg) {
 
 /* ---- データ読み込み ---- */
 async function loadAll() {
-  const [empSnap, it, tpl, admSnap, repSnap, app, pw] = await Promise.all([
+  const [empSnap, it, admSnap, repSnap, app, pw] = await Promise.all([
     db.collection('employees').get(),
     fetchItems(false),
-    fetchTemplate(),
     db.collection('admins').get(),
     db.collection('reports').orderBy('createdAt', 'desc').limit(150).get(),
     fetchAppSettings(),
@@ -142,8 +137,6 @@ async function loadAll() {
   employees = empSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   items = it;
-  template = tpl;
-  tplDraft = [...tpl];
   admins = admSnap.docs.map(d => ({ email: d.id, ...d.data() }));
   reports = repSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   await loadProgress();
@@ -175,7 +168,6 @@ function renderAll() {
   renderReportFilter();
   renderReports();
   renderItems();
-  renderTemplate();
   renderAdmins();
   renderPhaseLockSetting();
   renderPracticeSettings();
@@ -468,6 +460,7 @@ async function openEmployee(id) {
       db.collection('reports').where('uid', '==', id).get(),
     ]);
     empNotes = noteSnap.exists ? (noteSnap.data().entries || []) : [];
+    empDaily = noteSnap.exists ? (noteSnap.data().daily || {}) : {};
     empReports = repSnap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     renderEmpDetail();
@@ -522,7 +515,19 @@ function renderEmpDetail() {
     </div>
 
     <div class="card">
-      <h3>責任者メモ <span class="muted small">（社員には表示されません）</span></h3>
+      <h3>責任者の日報 <span class="muted small">（この社員について・社員には表示されません）</span></h3>
+      <label>日付<input type="date" id="dl-date" value="${esc(dailyDate || todayStr())}"></label>
+      <div id="dl-emp-report"></div>
+      <label>指導したこと<textarea id="dl-taught" rows="3" placeholder="教えたこと、見せたこと、やらせたこと"></textarea></label>
+      <label>懸念点<textarea id="dl-concern" rows="2" placeholder="気になる点、つまずいているところ"></textarea></label>
+      <label>報告事項・以後の進め方<textarea id="dl-next" rows="3" placeholder="上長への共有事項、次にやらせること、引き継ぎ"></textarea></label>
+      <label>記入者<input id="dl-author" value="${esc(me.name)}"></label>
+      <button class="btn btn-primary btn-block" data-act="save-daily">この日の記録を保存</button>
+      <div id="dl-list">${dailyListHtml()}</div>
+    </div>
+
+    <div class="card">
+      <h3>ひとことメモ <span class="muted small">（社員には表示されません）</span></h3>
       <div id="notes-list">${notes.length ? notes.map((n, idx) => `<div class="note">
         <div class="note-meta"><span>${esc(n.author || '')}</span><span>${fmtDateTime(n.at)}</span><button class="btn btn-ghost btn-sm" data-del-note="${idx}">削除</button></div>
         <p>${esc(n.text)}</p>
@@ -560,6 +565,59 @@ function renderEmpDetail() {
       <div id="emp-reports">${empReports.length ? empReports.slice(0, 30).map(r => reportCard(r)).join('') : '<p class="muted small">まだ日報はありません</p>'}</div>
     </div>`;
   window.__notesSorted = notes;
+  loadDailyForm($('#dl-date').value);
+}
+
+/* ---- 責任者の日報（社員ごと・日別） ---- */
+let dailyDate = '';
+function dailyListHtml() {
+  const dates = Object.keys(empDaily).sort().reverse();
+  if (!dates.length) return '<p class="muted small" style="margin-top:10px">まだ記録はありません</p>';
+  return `<h3 class="section-title">これまでの記録（${dates.length} 日分）</h3>` + dates.map(dt => {
+    const x = empDaily[dt];
+    return `<div class="daily-entry">
+      <div class="note-meta"><b>${fmtYmd(dt)}</b><span>${esc(x.author || '')}</span><span>${fmtDateTime(x.at)}</span><button class="btn btn-ghost btn-sm" data-daily-edit="${dt}">編集</button><button class="btn btn-ghost btn-sm" data-daily-del="${dt}">削除</button></div>
+      ${x.taught ? `<div class="rep-sec"><div class="rep-label">指導したこと</div><p class="report-text">${esc(x.taught)}</p></div>` : ''}
+      ${x.concern ? `<div class="rep-sec"><div class="rep-label">懸念点</div><p class="report-text">${esc(x.concern)}</p></div>` : ''}
+      ${x.next ? `<div class="rep-sec"><div class="rep-label">報告事項・以後の進め方</div><p class="report-text">${esc(x.next)}</p></div>` : ''}
+    </div>`;
+  }).join('');
+}
+function loadDailyForm(dt) {
+  dailyDate = dt;
+  const x = empDaily[dt];
+  $('#dl-taught').value = x ? (x.taught || '') : '';
+  $('#dl-concern').value = x ? (x.concern || '') : '';
+  $('#dl-next').value = x ? (x.next || '') : '';
+  $('#dl-author').value = x && x.author ? x.author : me.name;
+  const rep = empReports.find(r => r.date === dt);
+  $('#dl-emp-report').innerHTML = rep
+    ? `<div class="hint"><b>${esc(currentEmp.name)} さんの ${fmtYmd(dt)} の日報</b>${reportBodyHtml(rep)}</div>`
+    : `<p class="muted small">${fmtYmd(dt)} の社員の日報はまだ出ていません</p>`;
+}
+async function saveDaily(btn) {
+  const dt = $('#dl-date').value;
+  if (!dt) { toast('日付を選んでください', 'err'); return; }
+  const entry = { taught: $('#dl-taught').value.trim(), concern: $('#dl-concern').value.trim(), next: $('#dl-next').value.trim(), author: $('#dl-author').value.trim() || me.name, at: Date.now() };
+  if (!entry.taught && !entry.concern && !entry.next) { toast('内容を書いてください', 'err'); return; }
+  setBusy(btn, true, '保存中…');
+  try {
+    await db.doc('notes/' + currentEmp.id).set({ daily: { [dt]: entry } }, { merge: true });
+    empDaily[dt] = entry;
+    $('#dl-list').innerHTML = dailyListHtml();
+    toast(`${fmtYmd(dt)} の記録を保存しました`, 'ok');
+  } catch (err) { toast(authErrorMessage(err), 'err'); }
+  finally { setBusy(btn, false); }
+}
+async function deleteDaily(dt) {
+  if (!confirm(`${fmtYmd(dt)} の記録を削除しますか？`)) return;
+  try {
+    await db.doc('notes/' + currentEmp.id).update(new firebase.firestore.FieldPath('daily', dt), FV.delete());
+    delete empDaily[dt];
+    $('#dl-list').innerHTML = dailyListHtml();
+    if ($('#dl-date').value === dt) loadDailyForm(dt);
+    toast('削除しました');
+  } catch (err) { toast(authErrorMessage(err), 'err'); }
 }
 
 async function onEmpDetailClick(ev) {
@@ -584,6 +642,10 @@ async function onEmpDetailClick(ev) {
     } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(unlockBtn, false); }
     return;
   }
+  const dEdit = t.closest('[data-daily-edit]');
+  if (dEdit) { $('#dl-date').value = dEdit.dataset.dailyEdit; loadDailyForm(dEdit.dataset.dailyEdit); $('#dl-taught').focus(); return; }
+  const dDel = t.closest('[data-daily-del]');
+  if (dDel) { await deleteDaily(dDel.dataset.dailyDel); return; }
   const delNote = t.closest('[data-del-note]');
   if (delNote) {
     const entry = (window.__notesSorted || [])[Number(delNote.dataset.delNote)];
@@ -599,6 +661,7 @@ async function onEmpDetailClick(ev) {
   if (!act) return;
   const kind = act.dataset.act;
 
+  if (kind === 'save-daily') { await saveDaily(act); return; }
   if (kind === 'add-note') {
     const text = $('#note-text').value.trim();
     if (!text) { toast('メモを入力してください', 'err'); return; }
@@ -1156,59 +1219,6 @@ function openBulkModal() {
 }
 
 /* ================= 設定 ================= */
-function renderTemplate() {
-  const wrap = $('#tpl-list');
-  wrap.innerHTML = tplDraft.length ? tplDraft.map((label, i) => `<div class="row">
-    <div class="order-btns"><button type="button" data-tmove="${i}" data-dir="-1">▲</button><button type="button" data-tmove="${i}" data-dir="1">▼</button></div>
-    <input class="row-main" data-tidx="${i}" value="${esc(label)}" style="margin:0">
-    <button type="button" class="btn btn-ghost btn-sm" data-tdel="${i}">✕</button>
-  </div>`).join('') : '<p class="muted small">まだチェック項目はありません</p>';
-}
-
-function readTplInputs() {
-  $$('#tpl-list input[data-tidx]').forEach(inp => { tplDraft[Number(inp.dataset.tidx)] = inp.value; });
-}
-
-function addTplRow() {
-  const inp = $('#tpl-new');
-  const v = inp.value.trim();
-  if (!v) return;
-  readTplInputs();
-  tplDraft.push(v);
-  inp.value = '';
-  renderTemplate();
-}
-
-function onTplClick(e) {
-  const del = e.target.closest('[data-tdel]');
-  if (del) { readTplInputs(); tplDraft.splice(Number(del.dataset.tdel), 1); renderTemplate(); return; }
-  const mv = e.target.closest('[data-tmove]');
-  if (mv) {
-    readTplInputs();
-    const i = Number(mv.dataset.tmove), j = i + Number(mv.dataset.dir);
-    if (j < 0 || j >= tplDraft.length) return;
-    [tplDraft[i], tplDraft[j]] = [tplDraft[j], tplDraft[i]];
-    renderTemplate();
-  }
-}
-
-async function saveTemplate() {
-  readTplInputs();
-  const list = tplDraft.map(s => s.trim()).filter(Boolean);
-  const btn = $('#tpl-save');
-  setBusy(btn, true, '保存中…');
-  try {
-    await db.doc('settings/reportTemplate').set({ items: list, updatedAt: FV.serverTimestamp() });
-    template = list; tplDraft = [...list];
-    renderTemplate();
-    toast('チェック項目を保存しました', 'ok');
-  } catch (err) {
-    toast(authErrorMessage(err), 'err');
-  } finally {
-    setBusy(btn, false);
-  }
-}
-
 function renderAdmins() {
   $('#admin-count').textContent = `${admins.length} / ${MAX_ADMINS}`;
   $('#admin-list').innerHTML = admins.map(a => `<div class="row">

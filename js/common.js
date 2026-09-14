@@ -198,11 +198,6 @@ function passLineText(kind, pass) {
 }
 const SHORTCUT_QUESTIONS_TOTAL = 10;
 
-async function fetchTemplate() {
-  const snap = await db.doc('settings/reportTemplate').get();
-  return snap.exists ? (snap.data().items || []) : [];
-}
-
 function statusOf(itemId, done, approvals) {
   if (approvals && approvals[itemId]) return 'approved';
   if (done && done[itemId]) return 'pending';
@@ -236,7 +231,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '16';
+const APP_VERSION = '17';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
