@@ -91,7 +91,7 @@ function renderPractice() {
   panel.innerHTML = `
     ${coarse ? '<div class="hint">練習はキーボードのある PC で行います。スマホでは記録の確認だけできます</div>' : ''}
     <div class="card">
-      <h3>⌨️ タイピング練習 <span class="muted small">${TYPING_SECONDS}秒</span></h3>
+      <h3>タイピング練習 <span class="muted small">${TYPING_SECONDS}秒</span></h3>
       <p class="muted small">出てきた言葉をローマ字で打ちます（shi / si、tsu / tu など、どの打ち方でもOK）。日本語入力（IME）はオフにしてください</p>
       ${passBadge('typing', rec)}
       <div class="stats">
@@ -104,7 +104,7 @@ function renderPractice() {
       ${historyList(rec.typing && rec.typing.history, h => `${fmtDateTime(h.at)}　${h.cpm} 打鍵/分・正確率 ${h.acc}%・${h.words} 語`)}
     </div>
     <div class="card">
-      <h3>⌨️ ショートカット練習 <span class="muted small">${SHORTCUT_QUESTIONS}問</span></h3>
+      <h3>ショートカット練習 <span class="muted small">${SHORTCUT_QUESTIONS}問</span></h3>
       <p class="muted small">「コピー」と出たら Ctrl + C を実際に押します。2回間違えると答えが表示されます。<b>必須</b>のキーは毎回全部出題され、1つでもミスすると不合格です</p>
       <div class="filter-row" style="flex-wrap:wrap">${setChips}</div>
       <label class="check"><input type="checkbox" id="sc-include-rare"><span>「ほぼ使わない」ものも混ぜる</span></label>
