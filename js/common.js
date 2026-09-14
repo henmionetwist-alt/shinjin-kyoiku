@@ -62,8 +62,27 @@ function showView(id) {
 function setTab(name) {
   $$('.tab-panel').forEach(p => { p.hidden = (p.dataset.tab !== name); });
   $$('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  moveTabIndicator();
   window.scrollTo(0, 0);
 }
+
+/* 下タブ：選んだタブの後ろを帯が滑って移動する */
+function moveTabIndicator() {
+  const bar = $('.tabbar');
+  if (!bar) return;
+  let ind = $('.tab-ind', bar);
+  if (!ind) { ind = document.createElement('span'); ind.className = 'tab-ind'; bar.insertBefore(ind, bar.firstChild); }
+  const btn = $('.tabbar button.active', bar);
+  if (!btn) { ind.style.opacity = '0'; return; }
+  const w = btn.offsetWidth - 12, x = btn.offsetLeft + 6;
+  ind.style.width = w + 'px';
+  ind.style.transform = `translateX(${x}px)`;
+  ind.style.opacity = '1';
+  btn.classList.remove('pop');
+  void btn.offsetWidth;
+  btn.classList.add('pop');
+}
+window.addEventListener('resize', () => moveTabIndicator());
 
 function setBusy(btn, busy, label) {
   if (!btn) return;
@@ -241,7 +260,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '31';
+const APP_VERSION = '32';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
