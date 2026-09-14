@@ -8,14 +8,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="新人教育">
-<meta name="theme-color" content="#14503a">
+<meta name="theme-color" content="#1f6f50">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=26">
+<link rel="stylesheet" href="css/style.css?v=27">
 </head>
 <body>
 
@@ -37,8 +34,8 @@
 <div id="view-login" class="view" hidden>
   <div class="login-wrap">
     <div class="login-logo">✓</div>
-    <h1><span class="app-name">新人教育</span></h1>
-    <p class="login-creed">理想の「在り方」を強くイメージする。<br>日々の小さな努力を積み重ね、<br>現状の外側へと、自分をアップデートし続ける。</p>
+    <h1 class="app-name">新人教育</h1>
+    <p class="muted small">責任者から受け取ったメールアドレスとパスワードでログインします</p>
     <form id="login-form" class="card">
       <label>メールアドレス
         <input id="login-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required>
@@ -50,7 +47,7 @@
       <button id="login-btn" class="btn btn-primary btn-block" type="submit">ログイン</button>
       <a href="#" id="login-reset" class="link-sm">パスワードを忘れた場合</a>
     </form>
-    <p class="muted small login-foot">責任者から受け取ったメールアドレスとパスワードでログインします<br>責任者の方は <a href="admin.html">責任者画面</a> へ</p>
+    <p class="muted small">責任者の方は <a href="admin.html">責任者画面</a> へ</p>
   </div>
 </div>
 
@@ -74,10 +71,9 @@
     <p id="updated-at" class="updated-at"></p>
 
     <section class="tab-panel" data-tab="home">
-      <div class="card card-greet">
+      <div class="card">
         <p class="muted small">おつかれさまです</p>
         <h2 id="home-greet"></h2>
-        <p class="creed-line">日々の小さな努力を積み重ね、現状の外側へ。</p>
       </div>
       <div class="card">
         <h3>教育の進み具合</h3>
@@ -141,20 +137,20 @@
 
   </main>
   <nav class="tabbar">
-    <button data-tab="home" class="active"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 4l8.5 6.5V19a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1z"/></svg></span>ホーム</button>
-    <button data-tab="training"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg></span>教育</button>
-    <button data-tab="practice"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="11" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M6.5 13.5h.01M17 13.5h.01M9.5 13.5h5"/></svg></span>練習</button>
-    <button data-tab="report"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5z"/><path d="M13.5 7 17 10.5"/></svg></span>日報</button>
+    <button data-tab="home" class="active"><span class="ico">🏠</span>ホーム</button>
+    <button data-tab="training"><span class="ico">📚</span>教育</button>
+    <button data-tab="practice"><span class="ico">⌨️</span>練習</button>
+    <button data-tab="report"><span class="ico">📝</span>日報</button>
   </nav>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=26"></script>
-<script src="js/common.js?v=26"></script>
-<script src="js/practice-data.js?v=26"></script>
-<script src="js/practice.js?v=26"></script>
-<script src="js/employee.js?v=26"></script>
+<script src="js/firebase-config.js?v=27"></script>
+<script src="js/common.js?v=27"></script>
+<script src="js/practice-data.js?v=27"></script>
+<script src="js/practice.js?v=27"></script>
+<script src="js/employee.js?v=27"></script>
 </body>
 </html>

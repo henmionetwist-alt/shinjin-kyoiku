@@ -666,9 +666,9 @@ function renderEmpDetail() {
     </div>
 
     <div class="seg emp-subtabs" id="emp-subtabs">
-      <button type="button" data-etab="record" class="${empTab === 'record' ? 'active' : ''}">記録・日報</button>
-      <button type="button" data-etab="items" class="${empTab === 'items' ? 'active' : ''}">許可・教育項目${s.pending ? `<small>${s.pending}</small>` : ''}</button>
-      <button type="button" data-etab="practice" class="${empTab === 'practice' ? 'active' : ''}">練習</button>
+      <button type="button" data-etab="record" class="${empTab === 'record' ? 'active' : ''}">📅 記録・日報</button>
+      <button type="button" data-etab="items" class="${empTab === 'items' ? 'active' : ''}">📚 許可・教育項目${s.pending ? `<small>${s.pending}</small>` : ''}</button>
+      <button type="button" data-etab="practice" class="${empTab === 'practice' ? 'active' : ''}">⌨️ 練習</button>
     </div>
 
     <div class="emp-pane" data-pane="record" ${empTab === 'record' ? '' : 'hidden'}>
@@ -722,7 +722,7 @@ function renderEmpDetail() {
 
     <div class="emp-pane" data-pane="practice" ${empTab === 'practice' ? '' : 'hidden'}>
     <div class="card">
-      <h3>練習の記録</h3>
+      <h3>⌨️ 練習の記録</h3>
       ${practiceRecordHtml(e.id)}
     </div>
     </div>`;
