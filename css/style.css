@@ -242,6 +242,33 @@ label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--pr
 .pass-line { font-size: 13px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; }
 .pass-line.pass-ok { background: var(--ok-soft); color: var(--ok-text); font-weight: 700; }
 
+/* ---- カレンダー ---- */
+.cal { margin: 6px 0 10px; }
+.cal-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.cal-head b { flex: 1; text-align: center; font-size: 16px; }
+.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); font-size: 11px; color: var(--muted); text-align: center; margin-bottom: 2px; }
+.cal-week span:first-child { color: var(--danger); } .cal-week span:last-child { color: #2f4c7a; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-blank { min-height: 44px; }
+.cal-day { border: 1px solid var(--line); background: #fff; border-radius: 8px; min-height: 44px; padding: 3px 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; cursor: pointer; color: var(--text); }
+.cal-day .d { font-size: 13px; line-height: 1.2; }
+.cal-day.has { background: #f7faf8; }
+.cal-day.today .d { font-weight: 700; color: var(--primary); text-decoration: underline; }
+.cal-day.sel { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cal-day.sel .d { color: #fff; }
+.cal-day .marks { display: flex; align-items: center; gap: 2px; margin-top: 2px; min-height: 12px; flex-wrap: wrap; justify-content: center; }
+.cal-day .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot-a { background: #2f4c7a; } .dot-b { background: var(--ok); }
+.cal-day.sel .dot { outline: 1px solid #fff; }
+.cal-day .marks em { font-style: normal; font-size: 10px; color: var(--ok-text); font-weight: 700; }
+.cal-day.sel .marks em { color: #fff; }
+.cal-legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+.cal-legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: 0; }
+.day-panel h4 { margin: 12px 0 6px; font-size: 14px; color: var(--primary-dark); }
+.day-panel .day-list { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.day-panel .day-list li { padding: 4px 0; border-top: 1px solid var(--line); }
+.day-panel .day-list li:first-child { border-top: 0; }
+
 /* ---- 覚える（一覧・試す欄） ---- */
 .kbd-table { width: 100%; border-collapse: collapse; }
 .kbd-table td { padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: top; font-size: 15px; }

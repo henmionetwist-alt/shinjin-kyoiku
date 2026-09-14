@@ -231,7 +231,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '17';
+const APP_VERSION = '18';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
@@ -287,6 +287,38 @@ function reportBodyHtml(r) {
   }
   return r.text ? `<p class="report-text">${esc(r.text)}</p>` : '';
 }
+
+/* ---- カレンダー ---- */
+function ymdOf(v) {
+  const d = toDate(v); if (!d) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+/* marks: { 'YYYY-MM-DD': { a: bool, b: bool, n: number } }  a=青丸 b=緑丸 n=✓件数 */
+function calendarHtml(year, month, marks, selected, legend) {
+  const first = new Date(year, month, 1);
+  const days = new Date(year, month + 1, 0).getDate();
+  const today = todayStr();
+  let cells = '';
+  for (let i = 0; i < first.getDay(); i++) cells += '<div class="cal-blank"></div>';
+  for (let d = 1; d <= days; d++) {
+    const key = `${year}-${pad2(month + 1)}-${pad2(d)}`;
+    const m = marks[key] || {};
+    const cls = ['cal-day', key === today ? 'today' : '', key === selected ? 'sel' : '', (m.a || m.b || m.n) ? 'has' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="${cls}" data-cal-day="${key}"><span class="d">${d}</span><span class="marks">${m.a ? '<i class="dot dot-a"></i>' : ''}${m.b ? '<i class="dot dot-b"></i>' : ''}${m.n ? `<em>✓${m.n}</em>` : ''}</span></button>`;
+  }
+  return `<div class="cal">
+    <div class="cal-head"><button type="button" class="btn btn-ghost btn-sm" data-cal-prev>‹</button><b>${year}年${month + 1}月</b><button type="button" class="btn btn-ghost btn-sm" data-cal-next>›</button><button type="button" class="btn btn-ghost btn-sm" data-cal-today>今日</button></div>
+    <div class="cal-week">${WEEK.map(w => `<span>${w}</span>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>
+    ${legend ? `<div class="cal-legend">${legend}</div>` : ''}
+  </div>`;
+}
+function calNav(state, dir) {
+  if (dir === 0) { const t = new Date(); state.y = t.getFullYear(); state.m = t.getMonth(); state.sel = todayStr(); return; }
+  const d = new Date(state.y, state.m + dir, 1);
+  state.y = d.getFullYear(); state.m = d.getMonth();
+}
+function newCalState() { const t = new Date(); return { y: t.getFullYear(), m: t.getMonth(), sel: todayStr() }; }
 
 /* ---- モーダル ---- */
 function openModal(html) {

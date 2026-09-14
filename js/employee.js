@@ -3,6 +3,7 @@
 let me = null;
 let items = [], done = {}, memos = {}, approvals = {}, unlocked = {}, myReports = [];
 let practice = {};
+let myCal = newCalState();
 let practicePass = { typingCpm: 0, typingAcc: 0, shortcutScore: 0 };
 let appSettings = { phaseLock: false };
 const visibleItems = () => unlockedItems(items, unlocked, appSettings.phaseLock);
@@ -44,6 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setTab('training');
   });
   $('#report-form').addEventListener('submit', submitReport);
+  $('#report-cal').addEventListener('click', e => {
+    const day = e.target.closest('[data-cal-day]');
+    if (day) { myCal.sel = day.dataset.calDay; renderHistory(); return; }
+    if (e.target.closest('[data-cal-prev]')) { calNav(myCal, -1); renderHistory(); return; }
+    if (e.target.closest('[data-cal-next]')) { calNav(myCal, 1); renderHistory(); return; }
+    if (e.target.closest('[data-cal-today]')) { calNav(myCal, 0); renderHistory(); return; }
+    const write = e.target.closest('[data-write-day]');
+    if (write) { $('#report-date').value = write.dataset.writeDay; $('#report-did').focus(); window.scrollTo(0, 0); }
+  });
   const didEl = $('#report-did');
   didEl.addEventListener('focus', () => { if (!didEl.value) didEl.value = '・'; });
   didEl.addEventListener('keydown', e => {
@@ -382,18 +392,34 @@ async function submitReport(e) {
   }
 }
 
+function myDayMarks() {
+  const marks = {};
+  const add = (key, f) => { if (!key) return; marks[key] = marks[key] || { a: false, b: false, n: 0 }; f(marks[key]); };
+  myReports.forEach(r => add(r.date, m => { m.b = true; }));
+  Object.values(done).forEach(ts => add(ymdOf(ts), m => { m.n++; }));
+  Object.values(approvals).forEach(x => add(ymdOf(x && x.at), m => { m.n++; }));
+  Object.values(memos).forEach(m => add(ymdOf(m && m.at), k => { k.a = true; }));
+  return marks;
+}
 function renderHistory() {
-  const wrap = $('#report-history');
-  if (!myReports.length) { wrap.innerHTML = '<p class="empty">まだ提出した日報はありません</p>'; return; }
-  wrap.innerHTML = myReports.slice(0, 60).map(r => {
-    const conf = Object.values(r.confirmations || {});
-    const checks = r.checks || [];
-    const doneN = checks.filter(c => c.done).length;
-    return `<div class="card">
-      <div class="report-head"><span class="date">${fmtYmd(r.date)}</span>${checks.length ? `<span class="right">チェック ${doneN}/${checks.length}</span>` : ''}</div>
-      ${checks.length ? `<ul class="check-list">${checks.map(c => `<li class="${c.done ? 'on' : ''}">${c.done ? '☑' : '☐'} ${esc(c.label)}</li>`).join('')}</ul>` : ''}
-      ${reportBodyHtml(r)}
-      <div class="confirms">${conf.length ? conf.map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') : '<span class="muted">責任者の確認待ち</span>'}</div>
+  const wrap = $('#report-cal');
+  const dt = myCal.sel;
+  const rep = myReports.find(r => r.date === dt);
+  const byId = {}; items.forEach(i => { byId[i.id] = i; });
+  const acts = [];
+  Object.entries(done).forEach(([id, ts]) => { if (ymdOf(ts) === dt) acts.push({ at: ts, html: `<span class="badge badge-pending">履修</span> ${esc((byId[id] || {}).title || '')} <span class="muted small">${fmtDateTime(ts)}</span>` }); });
+  Object.entries(approvals).forEach(([id, x]) => { if (x && ymdOf(x.at) === dt) acts.push({ at: x.at, html: `<span class="badge badge-approved">承認</span> ${esc((byId[id] || {}).title || '')} <span class="muted small">${esc(x.by || '')} ${fmtDateTime(x.at)}</span>` }); });
+  Object.entries(memos).forEach(([id, m]) => { if (m && ymdOf(m.at) === dt) acts.push({ at: m.at, html: `<span class="badge badge-type">📝メモ</span> ${esc((byId[id] || {}).title || '')}：${esc(m.text)}` }); });
+  acts.sort((x, y) => (x.at || 0) - (y.at || 0));
+  const conf = rep ? Object.values(rep.confirmations || {}) : [];
+  const legend = `<span><i class="dot dot-b"></i>日報を出した日</span><span><i class="dot dot-a"></i>メモを書いた日</span><span>✓ 履修・承認の数</span>`;
+  wrap.innerHTML = `${calendarHtml(myCal.y, myCal.m, myDayMarks(), dt, legend)}
+    <div class="day-panel">
+      <h4>${fmtYmd(dt)} の日報</h4>
+      ${rep
+        ? reportBodyHtml(rep) + `<div class="confirms">${conf.length ? conf.map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') : '<span class="muted">責任者の確認待ち</span>'}</div>`
+        : `<p class="muted small">この日の日報はありません</p>${dt <= todayStr() ? `<button class="btn btn-ghost btn-sm" data-write-day="${dt}">この日の日報を書く</button>` : ''}`}
+      <h4>${fmtYmd(dt)} の履修・承認・メモ</h4>
+      ${acts.length ? `<ul class="day-list">${acts.map(a => `<li>${a.html}</li>`).join('')}</ul>` : '<p class="muted small">この日の記録はありません</p>'}
     </div>`;
-  }).join('');
 }

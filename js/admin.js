@@ -7,6 +7,7 @@ let practiceSettings = { useDefault: true, custom: [] };
 let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
 let currentEmp = null, empNotes = [], empReports = [], empDaily = {};
+let empCal = newCalState();
 
 const pubItems = () => items.filter(i => i.published !== false);
 const activeEmployees = () => employees.filter(e => e.active !== false);
@@ -27,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#btn-emp-back').addEventListener('click', closeEmployee);
   $('#emp-detail').addEventListener('click', onEmpDetailClick);
-  $('#emp-detail').addEventListener('change', e => { if (e.target.id === 'dl-date') loadDailyForm(e.target.value); });
 
   $$('[data-rfilter]').forEach(c => c.addEventListener('click', () => {
     reportFilter = c.dataset.rfilter;
@@ -450,6 +450,7 @@ function showCreated(title, name, email, pw) {
 async function openEmployee(id) {
   currentEmp = employees.find(e => e.id === id);
   if (!currentEmp) return;
+  empCal = newCalState();
   $('#emp-list-view').hidden = true;
   $('#emp-detail-view').hidden = false;
   $('#emp-detail').innerHTML = '<div class="spinner"></div>';
@@ -514,17 +515,7 @@ function renderEmpDetail() {
       </div>
     </div>
 
-    <div class="card">
-      <h3>責任者の日報 <span class="muted small">（この社員について・社員には表示されません）</span></h3>
-      <label>日付<input type="date" id="dl-date" value="${esc(dailyDate || todayStr())}"></label>
-      <div id="dl-emp-report"></div>
-      <label>指導したこと<textarea id="dl-taught" rows="3" placeholder="教えたこと、見せたこと、やらせたこと"></textarea></label>
-      <label>懸念点<textarea id="dl-concern" rows="2" placeholder="気になる点、つまずいているところ"></textarea></label>
-      <label>報告事項・以後の進め方<textarea id="dl-next" rows="3" placeholder="上長への共有事項、次にやらせること、引き継ぎ"></textarea></label>
-      <label>記入者<input id="dl-author" value="${esc(me.name)}"></label>
-      <button class="btn btn-primary btn-block" data-act="save-daily">この日の記録を保存</button>
-      <div id="dl-list">${dailyListHtml()}</div>
-    </div>
+    <div id="daily-card"></div>
 
     <div class="card">
       <h3>ひとことメモ <span class="muted small">（社員には表示されません）</span></h3>
@@ -565,57 +556,77 @@ function renderEmpDetail() {
       <div id="emp-reports">${empReports.length ? empReports.slice(0, 30).map(r => reportCard(r)).join('') : '<p class="muted small">まだ日報はありません</p>'}</div>
     </div>`;
   window.__notesSorted = notes;
-  loadDailyForm($('#dl-date').value);
+  renderDailyCard();
 }
 
-/* ---- 責任者の日報（社員ごと・日別） ---- */
-let dailyDate = '';
-function dailyListHtml() {
-  const dates = Object.keys(empDaily).sort().reverse();
-  if (!dates.length) return '<p class="muted small" style="margin-top:10px">まだ記録はありません</p>';
-  return `<h3 class="section-title">これまでの記録（${dates.length} 日分）</h3>` + dates.map(dt => {
-    const x = empDaily[dt];
-    return `<div class="daily-entry">
-      <div class="note-meta"><b>${fmtYmd(dt)}</b><span>${esc(x.author || '')}</span><span>${fmtDateTime(x.at)}</span><button class="btn btn-ghost btn-sm" data-daily-edit="${dt}">編集</button><button class="btn btn-ghost btn-sm" data-daily-del="${dt}">削除</button></div>
-      ${x.taught ? `<div class="rep-sec"><div class="rep-label">指導したこと</div><p class="report-text">${esc(x.taught)}</p></div>` : ''}
-      ${x.concern ? `<div class="rep-sec"><div class="rep-label">懸念点</div><p class="report-text">${esc(x.concern)}</p></div>` : ''}
-      ${x.next ? `<div class="rep-sec"><div class="rep-label">報告事項・以後の進め方</div><p class="report-text">${esc(x.next)}</p></div>` : ''}
-    </div>`;
-  }).join('');
+/* ---- 責任者の日報（社員ごと・日別・カレンダー） ---- */
+function empDayMarks(uid) {
+  const marks = {};
+  const add = (key, f) => { if (!key) return; marks[key] = marks[key] || { a: false, b: false, n: 0 }; f(marks[key]); };
+  Object.keys(empDaily).forEach(dt => add(dt, m => { m.a = true; }));
+  empReports.forEach(r => add(r.date, m => { m.b = true; }));
+  Object.values(progressMap[uid] || {}).forEach(ts => add(ymdOf(ts), m => { m.n++; }));
+  Object.values(approvalsMap[uid] || {}).forEach(x => add(ymdOf(x && x.at), m => { m.n++; }));
+  return marks;
 }
-function loadDailyForm(dt) {
-  dailyDate = dt;
+function empDayActivity(uid, dt) {
+  const byId = {}; items.forEach(i => { byId[i.id] = i; });
+  const rows = [];
+  Object.entries(progressMap[uid] || {}).forEach(([id, ts]) => { if (ymdOf(ts) === dt) rows.push({ at: ts, html: `<span class="badge badge-pending">履修</span> ${esc((byId[id] || {}).title || '（削除された項目）')} <span class="muted small">${fmtDateTime(ts)}</span>` }); });
+  Object.entries(approvalsMap[uid] || {}).forEach(([id, x]) => { if (x && ymdOf(x.at) === dt) rows.push({ at: x.at, html: `<span class="badge badge-approved">承認</span> ${esc((byId[id] || {}).title || '（削除された項目）')} <span class="muted small">${esc(x.by || '')} ${fmtDateTime(x.at)}</span>` }); });
+  Object.entries(memosMap[uid] || {}).forEach(([id, m]) => { if (m && ymdOf(m.at) === dt) rows.push({ at: m.at, html: `<span class="badge badge-type">📝メモ</span> ${esc((byId[id] || {}).title || '')}：${esc(m.text)}` }); });
+  const pr = practiceMap[uid] || {};
+  ((pr.typing || {}).history || []).forEach(h => { if (ymdOf(h.at) === dt) rows.push({ at: h.at, html: `<span class="badge badge-type">⌨️練習</span> タイピング ${h.cpm} 打鍵/分・正確率 ${h.acc}% <span class="muted small">${fmtDateTime(h.at)}</span>` }); });
+  ((pr.shortcuts || {}).history || []).forEach(h => { if (ymdOf(h.at) === dt) rows.push({ at: h.at, html: `<span class="badge badge-type">⌨️練習</span> ショートカット ${h.score}/${h.total}・${h.seconds}秒 <span class="muted small">${fmtDateTime(h.at)}</span>` }); });
+  return rows.sort((x, y) => (x.at || 0) - (y.at || 0));
+}
+function renderDailyCard() {
+  const card = $('#daily-card');
+  const e = currentEmp;
+  if (!card || !e) return;
+  const dt = empCal.sel;
   const x = empDaily[dt];
-  $('#dl-taught').value = x ? (x.taught || '') : '';
-  $('#dl-concern').value = x ? (x.concern || '') : '';
-  $('#dl-next').value = x ? (x.next || '') : '';
-  $('#dl-author').value = x && x.author ? x.author : me.name;
   const rep = empReports.find(r => r.date === dt);
-  $('#dl-emp-report').innerHTML = rep
-    ? `<div class="hint"><b>${esc(currentEmp.name)} さんの ${fmtYmd(dt)} の日報</b>${reportBodyHtml(rep)}</div>`
-    : `<p class="muted small">${fmtYmd(dt)} の社員の日報はまだ出ていません</p>`;
+  const acts = empDayActivity(e.id, dt);
+  const legend = `<span><i class="dot dot-a"></i>責任者の記録</span><span><i class="dot dot-b"></i>社員の日報</span><span>✓ 履修・承認の数</span>`;
+  card.innerHTML = `<div class="card">
+    <h3>責任者の日報 <span class="muted small">（この社員について・社員には表示されません）　記録のある日：${Object.keys(empDaily).length} 日</span></h3>
+    ${calendarHtml(empCal.y, empCal.m, empDayMarks(e.id), dt, legend)}
+    <div class="day-panel">
+      <h4>${fmtYmd(dt)} の ${esc(e.name)} さんの動き</h4>
+      ${acts.length ? `<ul class="day-list">${acts.map(a => `<li>${a.html}</li>`).join('')}</ul>` : '<p class="muted small">この日の履修・承認・メモ・練習はありません</p>'}
+      <h4>${fmtYmd(dt)} の日報</h4>
+      ${rep ? reportBodyHtml(rep) + `<div class="confirms">${Object.values(rep.confirmations || {}).map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') || '<span class="muted small">未確認</span>'} <button class="btn ${(rep.confirmations || {})[me.uid] ? 'btn-ghost' : 'btn-primary'} btn-sm" data-confirm="${rep.id}">${(rep.confirmations || {})[me.uid] ? '確認を取り消す' : '✅ 確認した'}</button></div>` : '<p class="muted small">この日の日報はまだ出ていません</p>'}
+      <h4>${fmtYmd(dt)} の責任者の記録 ${x ? `<span class="muted small">（${esc(x.author || '')}・${fmtDateTime(x.at)} 保存）</span>` : ''}</h4>
+      <label>指導したこと<textarea id="dl-taught" rows="3" placeholder="教えたこと、見せたこと、やらせたこと">${esc(x ? x.taught : '')}</textarea></label>
+      <label>懸念点<textarea id="dl-concern" rows="2" placeholder="気になる点、つまずいているところ">${esc(x ? x.concern : '')}</textarea></label>
+      <label>報告事項・以後の進め方<textarea id="dl-next" rows="3" placeholder="上長への共有事項、次にやらせること、引き継ぎ">${esc(x ? x.next : '')}</textarea></label>
+      <label>記入者<input id="dl-author" value="${esc(x && x.author ? x.author : me.name)}"></label>
+      <div class="btn-row">
+        ${x ? `<button class="btn btn-danger" data-daily-del="${dt}">この日の記録を削除</button>` : ''}
+        <button class="btn btn-primary" data-act="save-daily">この日の記録を保存</button>
+      </div>
+    </div>
+  </div>`;
 }
 async function saveDaily(btn) {
-  const dt = $('#dl-date').value;
-  if (!dt) { toast('日付を選んでください', 'err'); return; }
+  const dt = empCal.sel;
   const entry = { taught: $('#dl-taught').value.trim(), concern: $('#dl-concern').value.trim(), next: $('#dl-next').value.trim(), author: $('#dl-author').value.trim() || me.name, at: Date.now() };
   if (!entry.taught && !entry.concern && !entry.next) { toast('内容を書いてください', 'err'); return; }
   setBusy(btn, true, '保存中…');
   try {
     await db.doc('notes/' + currentEmp.id).set({ daily: { [dt]: entry } }, { merge: true });
     empDaily[dt] = entry;
-    $('#dl-list').innerHTML = dailyListHtml();
+    renderDailyCard();
     toast(`${fmtYmd(dt)} の記録を保存しました`, 'ok');
-  } catch (err) { toast(authErrorMessage(err), 'err'); }
-  finally { setBusy(btn, false); }
+  } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(btn, false); }
 }
 async function deleteDaily(dt) {
   if (!confirm(`${fmtYmd(dt)} の記録を削除しますか？`)) return;
   try {
     await db.doc('notes/' + currentEmp.id).update(new firebase.firestore.FieldPath('daily', dt), FV.delete());
     delete empDaily[dt];
-    $('#dl-list').innerHTML = dailyListHtml();
-    if ($('#dl-date').value === dt) loadDailyForm(dt);
+    renderDailyCard();
     toast('削除しました');
   } catch (err) { toast(authErrorMessage(err), 'err'); }
 }
@@ -642,8 +653,11 @@ async function onEmpDetailClick(ev) {
     } catch (err) { toast(authErrorMessage(err), 'err'); setBusy(unlockBtn, false); }
     return;
   }
-  const dEdit = t.closest('[data-daily-edit]');
-  if (dEdit) { $('#dl-date').value = dEdit.dataset.dailyEdit; loadDailyForm(dEdit.dataset.dailyEdit); $('#dl-taught').focus(); return; }
+  const calDay = t.closest('[data-cal-day]');
+  if (calDay) { empCal.sel = calDay.dataset.calDay; renderDailyCard(); return; }
+  if (t.closest('[data-cal-prev]')) { calNav(empCal, -1); renderDailyCard(); return; }
+  if (t.closest('[data-cal-next]')) { calNav(empCal, 1); renderDailyCard(); return; }
+  if (t.closest('[data-cal-today]')) { calNav(empCal, 0); renderDailyCard(); return; }
   const dDel = t.closest('[data-daily-del]');
   if (dDel) { await deleteDaily(dDel.dataset.dailyDel); return; }
   const delNote = t.closest('[data-del-note]');
