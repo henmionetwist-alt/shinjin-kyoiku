@@ -241,7 +241,7 @@ function renderTypeSeg(el, list, active) {
 }
 
 /* アプリのバージョン（version.json と index.html / admin.html の ?v= と同じ番号にする） */
-const APP_VERSION = '19';
+const APP_VERSION = '20';
 
 /* 新しいバージョンが公開されていれば読み込み直す。true を返したら reload 済み */
 async function checkForNewVersion(showToast) {
@@ -331,13 +331,13 @@ function calNav(state, dir) {
 function newCalState() { const t = new Date(); return { y: t.getFullYear(), m: t.getMonth(), sel: todayStr() }; }
 
 /* ---- モーダル ---- */
-function openModal(html) {
+function openModal(html, opts = {}) {
   closeModal();
   const bd = document.createElement('div');
   bd.className = 'modal-backdrop';
   bd.id = 'modal';
   bd.innerHTML = `<div class="modal">${html}</div>`;
-  bd.addEventListener('click', e => { if (e.target === bd) closeModal(); });
+  if (!opts.sticky) bd.addEventListener('click', e => { if (e.target === bd) closeModal(); });
   document.body.appendChild(bd);
   document.body.classList.add('modal-open');
   return bd;

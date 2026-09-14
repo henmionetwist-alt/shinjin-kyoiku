@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-admin.json">
 <link rel="apple-touch-icon" href="icons/admin-180.png">
 <link rel="icon" href="icons/admin-192.png">
-<link rel="stylesheet" href="css/style.css?v=19">
+<link rel="stylesheet" href="css/style.css?v=20">
 </head>
 <body class="admin">
 
@@ -51,7 +51,8 @@
   <header class="app-header">
     <span class="app-name">新人教育</span>
     <span class="badge-admin">責任者</span>
-    <span id="me-name" class="me-name"></span>
+    <span id="me-name" class="me-name" hidden></span>
+    <button id="btn-operator" class="refresh-btn" type="button" title="操作する人を切り替え">👤</button>
     <button id="btn-refresh" class="refresh-btn" type="button" title="最新の状態に更新">↻ 更新</button>
   </header>
   <main>
@@ -128,6 +129,12 @@
         <button class="btn btn-ghost btn-block" id="btn-add-admin">＋ 責任者を追加</button>
       </div>
       <div class="card">
+        <h3>操作する責任者の名前</h3>
+        <p class="muted small">1つのアカウントを複数人で使うときは、ここに名前を登録しておくと、ログイン後に「誰が操作しますか？」と聞かれ、承認・日報の確認・指導記録に選んだ名前が残ります。右上の 👤 からいつでも切り替えられます</p>
+        <div id="op-list"></div>
+        <div class="inline-form"><input id="op-new-setting" placeholder="名前を追加（例：佐藤）"><button class="btn btn-ghost" id="op-add-setting" type="button">追加</button></div>
+      </div>
+      <div class="card">
         <h3>自分の設定</h3>
         <p>表示名：<b id="my-name-disp"></b> <button class="btn btn-ghost btn-sm" id="btn-edit-my-name">変更</button></p>
         <p class="muted small">承認や日報の確認をしたときに、この名前が社員に表示されます</p>
@@ -148,9 +155,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js?v=19"></script>
-<script src="js/common.js?v=19"></script>
-<script src="js/practice-data.js?v=19"></script>
-<script src="js/admin.js?v=19"></script>
+<script src="js/firebase-config.js?v=20"></script>
+<script src="js/common.js?v=20"></script>
+<script src="js/practice-data.js?v=20"></script>
+<script src="js/admin.js?v=20"></script>
 </body>
 </html>

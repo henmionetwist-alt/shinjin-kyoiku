@@ -7,6 +7,64 @@ let practiceSettings = { useDefault: true, custom: [] };
 let appSettings = { phaseLock: false };
 let reportFilter = 'all', reportEmp = '';
 let currentEmp = null, empNotes = [], empReports = [], empDaily = {};
+let operators = [];            // 操作する責任者の名前リスト（settings/app.operators）
+let accountName = '';          // ログインアカウントに付いている名前
+
+/* 日報の確認：共有アカウントでも誰が確認したか分かるように名前をキーにする */
+function myConfirmKey(r) {
+  const c = r.confirmations || {};
+  const k = Object.keys(c).find(k => k === me.name || (c[k] && c[k].name === me.name) || (k === me.uid && operators.length === 0));
+  return k || null;
+}
+function confirmedByMe(r) { return !!myConfirmKey(r); }
+
+function operatorStorageKey() { return 'operatorName_' + (me ? me.uid : ''); }
+function applyOperator(name) {
+  me.name = name || accountName;
+  try { if (name) localStorage.setItem(operatorStorageKey(), name); } catch (e) {}
+  $('#me-name').textContent = me.name;
+  const b = $('#btn-operator');
+  if (b) b.textContent = `👤 ${me.name}`;
+  $('#my-name-disp').textContent = me.name;
+}
+function openOperatorModal(required) {
+  openModal(`<h3>誰が操作しますか？</h3>
+    <p class="muted small">承認・日報の確認・指導記録に、選んだ名前が記録されます。人が変わるときは右上の 👤 から切り替えてください</p>
+    <div class="value-chips op-chips" style="margin:8px 0 12px">${operators.map(n => `<button type="button" class="chip ${n === me.name ? 'active' : ''}" data-op="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+    <div class="inline-form"><input id="op-new" placeholder="名前を追加（例：佐藤）"><button type="button" class="btn btn-ghost" id="op-add">追加</button></div>
+    <p id="op-error" class="error"></p>
+    ${required ? '' : '<button type="button" class="btn btn-ghost btn-block" id="op-cancel">閉じる</button>'}`, { sticky: !!required });
+  const modal = $('#modal');
+  modal.addEventListener('click', async e => {
+    const c = e.target.closest('[data-op]');
+    if (c) { applyOperator(c.dataset.op); closeModal(); toast(`${c.dataset.op} として操作します`, 'ok'); renderReports(); renderPending(); if (currentEmp) renderEmpDetail(); }
+  });
+  if (!required) $('#op-cancel').addEventListener('click', closeModal);
+  const add = async () => {
+    const n = $('#op-new').value.trim();
+    if (!n) return;
+    if (operators.includes(n)) { $('#op-error').textContent = 'すでにあります'; return; }
+    try {
+      const next = [...operators, n];
+      await db.doc('settings/app').set({ operators: next, updatedAt: FV.serverTimestamp() }, { merge: true });
+      operators = next; appSettings.operators = next;
+      applyOperator(n); closeModal(); renderOperatorsSetting();
+      toast(`${n} を追加し、${n} として操作します`, 'ok');
+    } catch (err) { $('#op-error').textContent = authErrorMessage(err); }
+  };
+  $('#op-add').addEventListener('click', add);
+  $('#op-new').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+}
+function renderOperatorsSetting() {
+  const el = $('#op-list');
+  if (!el) return;
+  el.innerHTML = operators.length ? operators.map(n => `<div class="row"><div class="row-main">${esc(n)}${n === me.name ? ' <span class="badge badge-type">いま操作中</span>' : ''}</div><button type="button" class="btn btn-ghost btn-sm" data-op-del="${esc(n)}">削除</button></div>`).join('') : '<p class="muted small">まだ名前がありません。ログイン後に出る画面か、下の欄から追加してください</p>';
+}
+async function saveOperators(next) {
+  await db.doc('settings/app').set({ operators: next, updatedAt: FV.serverTimestamp() }, { merge: true });
+  operators = next; appSettings.operators = next;
+  renderOperatorsSetting();
+}
 let empCal = newCalState();
 
 const pubItems = () => items.filter(i => i.published !== false);
@@ -53,6 +111,20 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-add-admin').addEventListener('click', openAddAdmin);
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
+  $('#btn-operator').addEventListener('click', () => openOperatorModal(false));
+  $('#op-add-setting').addEventListener('click', async () => {
+    const n = $('#op-new-setting').value.trim();
+    if (!n) return;
+    if (operators.includes(n)) { toast('すでにあります', 'err'); return; }
+    try { await saveOperators([...operators, n]); $('#op-new-setting').value = ''; toast(`${n} を追加しました`, 'ok'); }
+    catch (err) { toast(authErrorMessage(err), 'err'); }
+  });
+  $('#op-list').addEventListener('click', async e => {
+    const b = e.target.closest('[data-op-del]');
+    if (!b || !confirm(`${b.dataset.opDel} を名前リストから外しますか？（過去の記録はそのまま残ります）`)) return;
+    try { await saveOperators(operators.filter(n => n !== b.dataset.opDel)); toast('外しました'); }
+    catch (err) { toast(authErrorMessage(err), 'err'); }
+  });
   $('#pw-save').addEventListener('click', savePracticeWords);
   $('#pass-save').addEventListener('click', savePassLine);
   $('#phase-lock').addEventListener('change', async e => {
@@ -105,13 +177,20 @@ async function onAuth(user) {
       showBlocked('このアカウントは責任者として登録されていません。責任者に「責任者を追加」してもらうか、社員画面からログインしてください。');
       return;
     }
-    me = { uid: user.uid, email, name: adm.data().name || email };
+    accountName = adm.data().name || email;
+    me = { uid: user.uid, email, name: accountName };
     $('#me-name').textContent = me.name;
     await loadAll();
+    operators = appSettings.operators || [];
+    let stored = '', needPick = false;
+    try { stored = localStorage.getItem(operatorStorageKey()) || ''; } catch (e) {}
+    if (operators.length && stored && operators.includes(stored)) applyOperator(stored);
+    else { applyOperator(''); needPick = operators.length > 0; }
     renderAll();
     setTab('pending');
     showView('view-main');
     checkForNewVersion(false);
+    if (needPick) openOperatorModal(true);
   } catch (err) {
     showBlocked('読み込みに失敗しました：' + authErrorMessage(err));
   }
@@ -172,7 +251,9 @@ function renderAll() {
   renderAdmins();
   renderPhaseLockSetting();
   renderPracticeSettings();
+  renderOperatorsSetting();
   $('#my-name-disp').textContent = me.name;
+  const ob = $('#btn-operator'); if (ob) ob.textContent = `👤 ${me.name}`;
 }
 
 /* ---- 練習：言葉リストの設定 ---- */
@@ -322,7 +403,7 @@ function renderPending() {
       </div>`).join('')}
     </div>`);
   }
-  const unconf = reports.filter(r => !(r.confirmations || {})[me.uid]).length;
+  const unconf = reports.filter(r => !confirmedByMe(r)).length;
   $('#pending-summary').innerHTML = `
     <div class="stat"><b>${total}</b><span>確認待ち</span></div>
     <div class="stat"><b>${unconf}</b><span>未確認の日報</span></div>
@@ -626,7 +707,7 @@ function renderDailyCard() {
       <h4>${fmtYmd(dt)} の ${esc(e.name)} さんの動き</h4>
       ${acts.length ? `<ul class="day-list">${acts.map(a => `<li>${a.html}</li>`).join('')}</ul>` : '<p class="muted small">この日の履修・承認・メモ・練習はありません</p>'}
       <h4>${fmtYmd(dt)} の日報</h4>
-      ${rep ? reportBodyHtml(rep) + `<div class="confirms">${Object.values(rep.confirmations || {}).map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') || '<span class="muted small">未確認</span>'} <button class="btn ${(rep.confirmations || {})[me.uid] ? 'btn-ghost' : 'btn-primary'} btn-sm" data-confirm="${rep.id}">${(rep.confirmations || {})[me.uid] ? '確認を取り消す' : '✅ 確認した'}</button></div>` : '<p class="muted small">この日の日報はまだ出ていません</p>'}
+      ${rep ? reportBodyHtml(rep) + `<div class="confirms">${Object.values(rep.confirmations || {}).map(c => `<span class="chip-ok">✅ ${esc(c.name)}</span>`).join('') || '<span class="muted small">未確認</span>'} <button class="btn ${confirmedByMe(rep) ? 'btn-ghost' : 'btn-primary'} btn-sm" data-confirm="${rep.id}">${confirmedByMe(rep) ? '確認を取り消す' : '✅ 確認した'}</button></div>` : '<p class="muted small">この日の日報はまだ出ていません</p>'}
       <h4>${fmtYmd(dt)} の責任者の記録 ${x ? `<span class="muted small">（${esc(x.author || '')}・${fmtDateTime(x.at)} 保存）</span>` : ''}</h4>
       <label>指導したこと<textarea id="dl-taught" rows="3" placeholder="教えたこと、見せたこと、やらせたこと">${esc(x ? x.taught : '')}</textarea></label>
       <label>懸念点<textarea id="dl-concern" rows="2" placeholder="気になる点、つまずいているところ">${esc(x ? x.concern : '')}</textarea></label>
@@ -765,7 +846,7 @@ function renderReportFilter() {
 
 function reportCard(r) {
   const conf = Object.values(r.confirmations || {});
-  const mine = !!(r.confirmations || {})[me.uid];
+  const mine = confirmedByMe(r);
   const checks = r.checks || [];
   const doneN = checks.filter(c => c.done).length;
   return `<div class="card" data-report="${r.id}">
@@ -781,7 +862,7 @@ function renderReports() {
   const wrap = $('#reports-list');
   let list = reports;
   if (reportEmp) list = list.filter(r => r.uid === reportEmp);
-  if (reportFilter === 'unconfirmed') list = list.filter(r => !(r.confirmations || {})[me.uid]);
+  if (reportFilter === 'unconfirmed') list = list.filter(r => !confirmedByMe(r));
   if (!list.length) {
     wrap.innerHTML = `<p class="empty">${reports.length ? '該当する日報はありません' : 'まだ日報は提出されていません'}</p>`;
     return;
@@ -797,16 +878,18 @@ async function onReportClick(e) {
 async function toggleConfirm(id, btn) {
   const r = reports.find(x => x.id === id) || empReports.find(x => x.id === id);
   if (!r) return;
-  const mine = !!(r.confirmations || {})[me.uid];
+  const existingKey = myConfirmKey(r);
+  const mine = !!existingKey;
+  const key = existingKey || me.name;
   setBusy(btn, true, '…');
   try {
     const value = mine ? FV.delete() : { name: me.name, at: Date.now() };
-    await db.doc('reports/' + id).update({ ['confirmations.' + me.uid]: value });
+    await db.doc('reports/' + id).update(new firebase.firestore.FieldPath('confirmations', key), value);
     for (const arr of [reports, empReports]) {
       const x = arr.find(y => y.id === id);
       if (!x) continue;
       x.confirmations = { ...(x.confirmations || {}) };
-      if (mine) delete x.confirmations[me.uid]; else x.confirmations[me.uid] = { name: me.name, at: Date.now() };
+      if (mine) delete x.confirmations[key]; else x.confirmations[key] = { name: me.name, at: Date.now() };
     }
     toast(mine ? '確認を取り消しました' : '確認しました', 'ok');
     renderReports(); renderPending();
