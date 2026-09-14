@@ -88,8 +88,34 @@ async function refreshAll(btn) {
   }
 }
 
+let watchUnsub = null;
+/* 在籍状態を見張り、責任者が削除・停止したらその場でログアウトする */
+function watchEmployeeStatus(uid) {
+  if (watchUnsub) { watchUnsub(); watchUnsub = null; }
+  watchUnsub = db.doc('employees/' + uid).onSnapshot(snap => {
+    if (!me) return;
+    if (!snap.exists) { forceSignOut('このアカウントは削除されました。責任者に確認してください'); return; }
+    if (snap.data().active === false) { forceSignOut('このアカウントは現在使えません。責任者に確認してください'); }
+  }, () => {});
+}
+let kickoutMsg = '';
+function forceSignOut(msg) {
+  if (watchUnsub) { watchUnsub(); watchUnsub = null; }
+  me = null;
+  kickoutMsg = msg;
+  stopPracticeSession();
+  showBlocked(msg);
+  auth.signOut();
+}
+
 async function onAuth(user) {
-  if (!user) { me = null; showLoginWithSplash(); return; }
+  if (!user) {
+    me = null;
+    if (watchUnsub) { watchUnsub(); watchUnsub = null; }
+    if (kickoutMsg) { showBlocked(kickoutMsg); kickoutMsg = ''; return; }
+    showLoginWithSplash();
+    return;
+  }
   showView('view-loading');
   try {
     const empSnap = await db.doc('employees/' + user.uid).get();
@@ -106,6 +132,7 @@ async function onAuth(user) {
     if (data.active === false) { showBlocked('このアカウントは現在使えません。責任者に確認してください。'); return; }
     me = { uid: user.uid, name: data.name || user.email, email: user.email };
     $('#me-name').textContent = me.name;
+    watchEmployeeStatus(user.uid);
     await loadAll();
     renderAll();
     setTab('home');

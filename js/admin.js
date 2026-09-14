@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#admin-list').addEventListener('click', onAdminListClick);
   $('#btn-edit-my-name').addEventListener('click', editMyName);
   $('#btn-operator').addEventListener('click', () => openOperatorModal(false));
+  $('#btn-backup').addEventListener('click', e => exportBackup(e.target));
   $('#op-add-setting').addEventListener('click', async () => {
     const n = $('#op-new-setting').value.trim();
     if (!n) return;
@@ -661,7 +662,8 @@ function renderEmpDetail() {
       <p class="muted small">${esc(e.email || '')}</p>
       <div class="btn-row">
         <button class="btn btn-ghost btn-sm" data-act="reset-pw">パスワード再設定メール</button>
-        <button class="btn ${e.active === false ? 'btn-primary' : 'btn-danger'} btn-sm" data-act="toggle-active">${e.active === false ? 'アカウントを再開' : 'アカウントを停止'}</button>
+        <button class="btn ${e.active === false ? 'btn-primary' : 'btn-ghost'} btn-sm" data-act="toggle-active">${e.active === false ? 'アカウントを再開' : '一時停止（あとで再開できます）'}</button>
+        <button class="btn btn-danger btn-sm" data-act="delete-emp">退職・削除</button>
       </div>
     </div>
 
@@ -728,6 +730,85 @@ function renderEmpDetail() {
     </div>`;
   window.__notesSorted = notes;
   renderDailyCard();
+}
+
+/* ---- 社員の削除（退職） ---- */
+function openDeleteEmployee(e) {
+  openModal(`<h3>${esc(e.name)} さんを削除</h3>
+    <p class="muted small">削除すると、その社員はログインできなくなります。<b>すでにログイン中の端末もその場で強制ログアウト</b>されます</p>
+    <label>残し方
+      <select id="del-mode">
+        <option value="keep">記録を残して削除（履修・日報・指導記録は責任者側に残ります）</option>
+        <option value="all">記録も完全に削除（履修・承認・メモ・指導記録・日報をすべて消す）</option>
+      </select>
+    </label>
+    <p class="hint">確認のため、下の欄に社員の名前「${esc(e.name)}」を入力してください</p>
+    <label>名前<input id="del-name" autocomplete="off" placeholder="${esc(e.name)}"></label>
+    <p class="hint">※ログイン用アカウント自体は Firebase に残ります。完全に消す場合は Firebase コンソール → Authentication → Users から <b>${esc(e.email || '')}</b> を削除してください（このアプリからは使えない状態になっています）</p>
+    <p id="del-error" class="error"></p>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" id="del-cancel">キャンセル</button>
+      <button type="button" class="btn btn-danger" id="del-run">削除する</button>
+    </div>`);
+  $('#del-cancel').addEventListener('click', closeModal);
+  $('#del-run').addEventListener('click', async () => {
+    if ($('#del-name').value.trim() !== e.name) { $('#del-error').textContent = '名前が一致しません'; return; }
+    const mode = $('#del-mode').value;
+    const btn = $('#del-run');
+    setBusy(btn, true, '削除中…');
+    try {
+      if (mode === 'all') {
+        const reps = await db.collection('reports').where('uid', '==', e.id).get();
+        for (let i = 0; i < reps.docs.length; i += 400) {
+          const batch = db.batch();
+          reps.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+        const batch = db.batch();
+        ['progress/' + e.id, 'approvals/' + e.id, 'notes/' + e.id].forEach(pp => batch.delete(db.doc(pp)));
+        await batch.commit();
+      }
+      // 最後に在籍情報を消す（社員側はこれを見張っていて即ログアウトになる）
+      await db.doc('employees/' + e.id).delete();
+      employees = employees.filter(x => x.id !== e.id);
+      [progressMap, approvalsMap, unlockedMap, unlockedVideoMap, memosMap, practiceMap].forEach(m => { delete m[e.id]; });
+      if (mode === 'all') reports = reports.filter(r => r.uid !== e.id);
+      closeModal();
+      closeEmployee();
+      renderAll();
+      toast(`${e.name} さんを削除しました`, 'ok');
+    } catch (err) {
+      $('#del-error').textContent = authErrorMessage(err);
+      setBusy(btn, false);
+    }
+  });
+}
+
+/* ---- バックアップ（全データの書き出し） ---- */
+async function exportBackup(btn) {
+  setBusy(btn, true, '書き出し中…');
+  try {
+    const cols = ['employees', 'items', 'admins', 'reports', 'progress', 'approvals', 'notes', 'settings'];
+    const data = { exportedAt: new Date().toISOString(), exportedBy: me.name, app: 'shinjin-kyoiku', version: APP_VERSION, collections: {} };
+    for (const c of cols) {
+      const snap = await db.collection(c).get();
+      data.collections[c] = {};
+      snap.docs.forEach(d => { data.collections[c][d.id] = d.data(); });
+    }
+    const counts = cols.map(c => `${c} ${Object.keys(data.collections[c]).length}`).join('・');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const d = new Date();
+    a.href = url;
+    a.download = `shinjin-kyoiku-backup-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    $('#backup-result').textContent = `書き出しました（${counts}）`;
+    toast('バックアップを書き出しました', 'ok');
+  } catch (err) {
+    $('#backup-result').textContent = '書き出せませんでした：' + authErrorMessage(err);
+  } finally { setBusy(btn, false); }
 }
 
 /* ---- 責任者の日報（社員ごと・日別・カレンダー） ---- */
@@ -948,6 +1029,8 @@ async function onEmpDetailClick(ev) {
       renderEmpDetail(); renderPending();
       toast(next ? '再開しました' : '停止しました', 'ok');
     } catch (err) { toast(authErrorMessage(err), 'err'); }
+  } else if (kind === 'delete-emp') {
+    openDeleteEmployee(e);
   } else if (kind === 'reset-pw') {
     if (!e.email || !confirm(`${e.email} にパスワード再設定メールを送りますか？`)) return;
     try {
